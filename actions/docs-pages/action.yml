@@ -1,0 +1,38 @@
+name: Deploy a documentation artifact to GitHub Pages
+description: Validate artifact identity and content before deploying, independently of npm or release policy.
+inputs:
+  expected-sha:
+    description: Exact source commit approved by the caller for deployment.
+    required: true
+  artifact-name:
+    description: Documentation artifact from this workflow run.
+    default: documentation
+outputs:
+  page-url:
+    description: Deployed Pages URL.
+    value: ${{ steps.deploy.outputs.page_url }}
+runs:
+  using: composite
+  steps:
+    - id: directory
+      shell: bash
+      run: echo "path=$(mktemp -d "$RUNNER_TEMP/xova-pages.XXXXXX")" >> "$GITHUB_OUTPUT"
+    - id: download
+      uses: actions/download-artifact@v7
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ steps.directory.outputs.path }}
+    - name: Validate documentation artifact
+      shell: bash
+      env:
+        XOVA_ACTION_PATH: ${{ github.action_path }}
+        ARTIFACT_DIRECTORY: ${{ steps.download.outputs.download-path }}
+        EXPECTED_SHA: ${{ inputs.expected-sha }}
+      run: node "$XOVA_ACTION_PATH/../../lib/cli.mjs" docs-validate
+    - uses: actions/configure-pages@v6
+    - uses: actions/upload-pages-artifact@v5
+      with:
+        include-hidden-files: true
+        path: ${{ steps.download.outputs.download-path }}/site
+    - id: deploy
+      uses: actions/deploy-pages@v5

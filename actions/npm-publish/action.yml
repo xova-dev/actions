@@ -1,0 +1,68 @@
+name: Verify and publish a public npm package
+description: Verify the tagged candidate and publish its packed output with native event provenance.
+inputs:
+  release-tag:
+    description: Existing tag at the native workflow event commit.
+    required: true
+  verify-command:
+    description: All required package checks, generation and build commands.
+    required: true
+  expected-sha:
+    description: Optional candidate already validated by upstream jobs.
+    default: ''
+  tag-prefix:
+    description: Prefix before package.json version, including any package namespace.
+    default: v
+  working-directory:
+    description: Package directory in the checked-out repository.
+    default: '.'
+  npm-tag:
+    description: auto selects latest for stable versions and next for prereleases.
+    default: auto
+outputs:
+  source-sha:
+    description: Verified and published source commit.
+    value: ${{ steps.package.outputs.source-sha }}
+  version:
+    description: Published package version.
+    value: ${{ steps.package.outputs.version }}
+runs:
+  using: composite
+  steps:
+    - name: Validate release candidate
+      id: candidate
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        XOVA_ACTION_PATH: ${{ github.action_path }}
+        RELEASE_TAG: ${{ inputs.release-tag }}
+        TAG_PREFIX: ${{ inputs.tag-prefix }}
+        NPM_TAG: ${{ inputs.npm-tag }}
+        VERIFY_COMMAND: ${{ inputs.verify-command }}
+        EXPECTED_SHA: ${{ inputs.expected-sha }}
+      run: node "$XOVA_ACTION_PATH/../../lib/cli.mjs" npm-candidate
+    - name: Verify and build final candidate
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        COMMAND: ${{ inputs.verify-command }}
+      run: bash -e -o pipefail -c "$COMMAND"
+    - name: Pack verified candidate
+      id: package
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        XOVA_ACTION_PATH: ${{ github.action_path }}
+        RELEASE_TAG: ${{ inputs.release-tag }}
+        TAG_PREFIX: ${{ inputs.tag-prefix }}
+        NPM_TAG: ${{ inputs.npm-tag }}
+        VERIFY_COMMAND: ${{ inputs.verify-command }}
+        EXPECTED_SHA: ${{ steps.candidate.outputs.source-sha }}
+        EXPECTED_VERSION: ${{ steps.candidate.outputs.version }}
+      run: node "$XOVA_ACTION_PATH/../../lib/cli.mjs" npm-pack
+    - name: Publish verified tarball
+      shell: bash
+      env:
+        TARBALL: ${{ steps.package.outputs.tarball }}
+        NPM_TAG: ${{ steps.package.outputs.npm-tag }}
+      run: npm publish "$TARBALL" --access public --provenance --ignore-scripts --tag "$NPM_TAG"

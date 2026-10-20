@@ -1,0 +1,46 @@
+name: Deploy a documentation artifact to Cloudflare
+description: Validate and restore a built site before running the caller's locked Wrangler command.
+inputs:
+  expected-sha:
+    description: Exact source commit approved by the caller for deployment.
+    required: true
+  artifact-name:
+    description: Documentation artifact from this workflow run.
+    default: documentation
+  working-directory:
+    description: Checked-out project with installed deployment dependencies.
+    default: '.'
+  site-directory:
+    description: Assets subdirectory expected by the caller's Wrangler configuration.
+    required: true
+  deploy-command:
+    description: Command invoking the caller's locked Wrangler dependency.
+    required: true
+runs:
+  using: composite
+  steps:
+    - id: directory
+      shell: bash
+      run: echo "path=$(mktemp -d "$RUNNER_TEMP/xova-cloudflare.XXXXXX")" >> "$GITHUB_OUTPUT"
+    - id: download
+      uses: actions/download-artifact@v7
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ steps.directory.outputs.path }}
+    - name: Restore verified documentation
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        XOVA_ACTION_PATH: ${{ github.action_path }}
+        ARTIFACT_DIRECTORY: ${{ steps.download.outputs.download-path }}
+        EXPECTED_SHA: ${{ inputs.expected-sha }}
+        SITE_DIRECTORY: ${{ inputs.site-directory }}
+      run: node "$XOVA_ACTION_PATH/../../lib/cli.mjs" docs-restore
+    - name: Deploy verified documentation
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        COMMAND: ${{ inputs.deploy-command }}
+      run: |
+        test -n "${COMMAND//[[:space:]]/}"
+        bash -e -o pipefail -c "$COMMAND"

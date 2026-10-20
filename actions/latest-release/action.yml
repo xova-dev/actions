@@ -1,0 +1,24 @@
+name: Select the latest stable GitHub Release
+description: Optional caller policy for updating a stable release site; not required by deployment adapters.
+inputs:
+  release-tag:
+    description: GitHub Release tag selected by the caller.
+    required: true
+  expected-sha:
+    description: Commit already approved by caller checks.
+    required: true
+outputs:
+  eligible:
+    description: true only when this exact candidate is the latest stable GitHub Release.
+    value: ${{ steps.policy.outputs.eligible }}
+runs:
+  using: composite
+  steps:
+    - id: policy
+      shell: bash
+      env:
+        XOVA_ACTION_PATH: ${{ github.action_path }}
+        GH_TOKEN: ${{ github.token }}
+        RELEASE_TAG: ${{ inputs.release-tag }}
+        EXPECTED_SHA: ${{ inputs.expected-sha }}
+      run: node "$XOVA_ACTION_PATH/../../lib/cli.mjs" latest-release

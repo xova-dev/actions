@@ -1,0 +1,19 @@
+{
+  "name": "@xova/actions",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "packageManager": "pnpm@12.14.0",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "lint": "node scripts/lint.mjs",
+    "test": "node --test test/*.test.mjs",
+    "release:preview": "node scripts/release.mjs preview",
+    "release:prepare": "node scripts/release.mjs prepare"
+  },
+  "devDependencies": {
+    "changelogen": "0.6.2",
+    "yaml": "2.9.1"
+  }
+}

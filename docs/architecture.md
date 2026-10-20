@@ -1,0 +1,133 @@
+# Architecture and interface contract
+
+English | [简体中文](architecture.zh-CN.md)
+
+## Scope and ownership
+
+Supported capabilities are public npm Trusted Publishing and static documentation
+with Pages/Cloudflare adapters. A single package in a subdirectory with an explicit
+tag prefix is supported. Monorepo version orchestration, dependency bumping,
+private packages, other registries, versioned sites and PR previews are outside scope.
+
+The reference environment is GitHub.com, GitHub-hosted Ubuntu, Bash and Node 24.
+Composites allow caller-selected setup/runners; Windows and other combinations
+have not been accepted. Recipes support `node` (default) or `mise` and fail on
+unknown selections. Use composites for other setups, without assuming untested
+Yarn/Python combinations have passed. Toolkit mise.toml and private package.json
+configure maintainers only.
+
+| Owner | Decisions |
+| --- | --- |
+| Consumer job | Events, checkout, tools, dependencies, checks, environments, permissions, concurrency, required upstream jobs and deployment eligibility. |
+| Composite action | Operation ordering, source validation, packing/publication or artifact validation/provider invocation. |
+| Reusable workflow | Common Ubuntu setup around one composite; no implicit latest-release or npm-to-docs dependency. |
+| lib/ | Internal implementation of shared invariants, not public entry points. |
+
+## Public actions
+
+Each action.yml owns the authoritative input/output descriptions.
+
+| Action | Contract |
+| --- | --- |
+| [npm-publish](../actions/npm-publish/action.yml) | Requires release-tag and verify-command; optional expected-sha, tag-prefix (v), working-directory (.), npm-tag (auto). Returns source-sha and version after publication. |
+| [docs-build](../actions/docs-build/action.yml) | Requires expected-sha, check-command, build-command, site-directory; optional working-directory (.), artifact-name (documentation), retention-days (7). Uploads an artifact and returns source-sha. |
+| [docs-pages](../actions/docs-pages/action.yml) | Requires expected-sha; optional artifact-name (documentation). Validates then deploys, returning page-url. Does not need checkout or npm dependencies. |
+| [docs-cloudflare](../actions/docs-cloudflare/action.yml) | Requires expected-sha, site-directory, deploy-command; optional artifact-name and working-directory. Caller checks out that commit, installs locked deployment tools and provides credentials in the step environment. |
+| [latest-release](../actions/latest-release/action.yml) | Optional policy requiring release-tag and expected-sha. Returns eligible=true for the exact latest stable GitHub Release, false for other releases; API errors/source mismatches fail. |
+
+Composites install no project tools/dependencies. Supply Node 24 and Bash; npm
+publication needs npm 11.5.1+, a public repository and Trusted Publishing.
+latest-release also needs gh. Pages jobs grant pages:write and id-token:write;
+publication grants id-token:write. Cloudflare credentials are explicit step
+environment variables CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID.
+
+There is no skip-validation switch. Failed checks stop packing/upload/deployment.
+Verification explicitly performs required generation and builds; npm packing and
+publication use --ignore-scripts. Tracked source/index changes are rejected.
+Native GITHUB_SHA/GITHUB_REF must identify the tagged publication candidate; the
+action does not rewrite provenance context. Prereleases default to next and cannot
+use latest. Stable versions default to latest; which versions may advance a
+channel remains caller policy.
+
+For provenance, package.json repository must identify the caller's public
+GitHub.com repository with case-sensitive owner/name equality to GITHUB_REPOSITORY.
+It accepts a string or an object with url: owner/repo, github:owner/repo, HTTP(S),
+git, SSH and git+ URL forms, including git@github.com:owner/repo.git. An optional
+.git suffix and trailing URL slash are normalized; subpackage directory is not
+part of repository identity. Passwords, usernames other than git, query strings
+and fragments are rejected. Missing/mismatched metadata fails before
+candidate outputs and is rechecked before packing; local origin is not a substitute.
+
+## Reusable workflows and policy
+
+The four workflows invoke matching composites. npm-publish defaults to npm ci and
+Node 24. docs-build defaults to npm ci and npm run docs:build, requiring explicit
+site-directory. Select toolchain=mise and explicit pnpm commands when needed;
+node-version applies to node mode. Environments are configurable. Cloudflare
+site-id must identify the same deployment target across runs; distinct targets
+need distinct identifiers. Pages serializes repository-wide for one Pages site.
+
+Recipes use GitHub.com's `$/actions/...` to resolve actions from the reusable
+workflow's own repository and commit, including SHA-pinned calls. GHES is outside
+this recipe contract. Actionlint 1.7.12 predates that syntax: only its missing-ref
+diagnostic for these paths is excluded, while tests validate targets and inputs.
+Other lint diagnostics remain enabled.
+
+pnpm lint also runs action-validator 0.9.0 recursively over action.yml/action.yaml
+under actions/. This validates metadata and composite-step structure, including
+required shell fields and unknown properties. These schema checks do not execute
+commands or fully validate composite expressions. Contract/behavior tests remain
+responsible for the selected execution paths. Both tools are pinned in mise.toml;
+CI uses their native binaries without Docker.
+
+Evaluate latest-release inside the deployment job after its environment gate and
+concurrency acquisition; condition the provider action on eligible=true. An early
+separate policy job could become stale while deployment waits. Matrix/RSP examples
+show this ordering; docs-only deliberately deploys main without release policy.
+This is not an atomic lock against creation of a new release during deployment.
+
+The policy queries the selected release by tag first. A prerelease or draft
+returns eligible=false without calling releases/latest, including the first
+prerelease before any stable release exists. Stable selections then query latest;
+matching releases must resolve to the exact expected tag commit. Missing selected releases, authentication,
+permission, service/transport errors and missing latest for a stable selection
+remain failures; no API error is converted to a skip.
+
+## Documentation artifact schema
+
+Artifacts from the same run contain site/ and source.json with required fields:
+
+```json
+{"schemaVersion":1,"repository":"owner/repo","sha":"<40 lowercase hex>","siteDigest":"<SHA-256>"}
+```
+
+The digest hashes sorted relative file paths and contents with length prefixes.
+Deployment requires schema version 1, the caller repository, expected-sha and a
+matching content digest. Empty sites, symlinks and nonregular files fail. Build and
+Cloudflare restore paths must be project subdirectories; outside/symlink-parent
+restore targets fail before deletion. Default retention is seven days.
+Each deployment action invocation uses a fresh download directory so repeated
+invocations in one job cannot merge artifacts from different sites.
+
+Build upload and Pages repackaging explicitly include hidden files, preserving
+content such as .well-known/. The upstream Pages uploader still excludes .git and
+.github; do not place deployable content there. Local consumer tests verify the
+hidden file bytes and the hosted uploader option, not real Pages archiving or transport.
+
+Metadata establishes consistency, not an independent attestation: an untrusted
+producer can forge content and metadata together. Use trusted runs and keep
+production credentials away from untrusted code. Cross-run artifact retrieval is
+outside the interface.
+
+## Compatibility
+
+Inputs, outputs, defaults, failure/skip behavior and artifact schema are public
+boundaries; lib modules are not. The draft v1 is unpublished. Stable-interface
+breaking changes require a new major version. Pin full SHAs and validate upgrades
+against independent fixtures and affected project examples.
+
+This draft restructuring replaces deployment published-sha/release-tag with
+expected-sha and moves stable-release policy into callers. mise/pnpm are opt-in;
+site-directory is explicit. Old SHA-only artifacts fail: rebuild instead of
+inventing metadata. Changelogen preparation remains a single-package, v-prefixed
+tag tool and does not infer monorepo release plans.

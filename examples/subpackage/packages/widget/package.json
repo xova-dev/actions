@@ -1,0 +1,15 @@
+{
+  "name": "xova-widget-consumer-example",
+  "version": "2.0.0",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/example/project.git",
+    "directory": "packages/widget"
+  },
+  "files": ["dist/"],
+  "scripts": {
+    "test": "node --test check.test.mjs",
+    "build": "node build.mjs"
+  }
+}

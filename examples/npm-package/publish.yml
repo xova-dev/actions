@@ -1,0 +1,16 @@
+name: Publish an npm-only project
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  publish:
+    uses: xova-dev/actions/.github/workflows/npm-publish.yml@v1
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      release-tag: ${{ github.ref_name }}
+      verify-command: npm test && npm run build
+      environment-name: public-npm

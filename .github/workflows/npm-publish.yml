@@ -1,0 +1,91 @@
+name: Verify and publish npm package
+on:
+  workflow_call:
+    inputs:
+      release-tag:
+        description: Existing tag; run the workflow at this same tag.
+        type: string
+        required: true
+      verify-command:
+        type: string
+        required: true
+      expected-sha:
+        type: string
+        default: ''
+      tag-prefix:
+        type: string
+        default: v
+      working-directory:
+        type: string
+        default: '.'
+      toolchain:
+        description: node uses setup-node; mise uses the consumer configuration.
+        type: string
+        default: node
+      node-version:
+        type: string
+        default: '24'
+      install-command:
+        type: string
+        default: npm ci
+      npm-tag:
+        type: string
+        default: auto
+      environment-name:
+        type: string
+        default: npm-publish
+    outputs:
+      source-sha:
+        description: Exact verified and published commit.
+        value: ${{ jobs.publish.outputs.source-sha }}
+      version:
+        description: Published package version.
+        value: ${{ jobs.publish.outputs.version }}
+permissions:
+  contents: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: ${{ inputs.environment-name }}
+    concurrency:
+      group: npm-${{ github.repository }}-${{ inputs.working-directory }}-${{ inputs.release-tag }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      source-sha: ${{ steps.publish.outputs.source-sha }}
+      version: ${{ steps.publish.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release-tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate toolchain selection
+        env:
+          TOOLCHAIN: ${{ inputs.toolchain }}
+        run: 'case "$TOOLCHAIN" in node|mise) ;; *) exit 1 ;; esac'
+      - uses: actions/setup-node@v7
+        if: inputs.toolchain == 'node'
+        with:
+          node-version: ${{ inputs.node-version }}
+      - uses: jdx/mise-action@v4.3.0
+        if: inputs.toolchain == 'mise'
+        with:
+          cache: true
+      - name: Install locked dependencies
+        working-directory: ${{ inputs.working-directory }}
+        env:
+          COMMAND: ${{ inputs.install-command }}
+        run: bash -e -o pipefail -c "$COMMAND"
+      - id: publish
+        uses: $/actions/npm-publish
+        with:
+          release-tag: ${{ inputs.release-tag }}
+          expected-sha: ${{ inputs.expected-sha }}
+          tag-prefix: ${{ inputs.tag-prefix }}
+          working-directory: ${{ inputs.working-directory }}
+          verify-command: ${{ inputs.verify-command }}
+          npm-tag: ${{ inputs.npm-tag }}

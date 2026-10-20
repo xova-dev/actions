@@ -1,0 +1,65 @@
+name: Build a documentation artifact
+description: Check and build an exact source commit and upload a versioned site artifact.
+inputs:
+  expected-sha:
+    description: Exact checked-out commit to check and build.
+    required: true
+  check-command:
+    description: Documentation checks required before building.
+    required: true
+  build-command:
+    description: Command producing the site directory.
+    required: true
+  site-directory:
+    description: Built subdirectory relative to working-directory.
+    required: true
+  working-directory:
+    description: Project directory in the checkout.
+    default: '.'
+  artifact-name:
+    description: Unique artifact name within the run.
+    default: documentation
+  retention-days:
+    description: Artifact retention within repository limits.
+    default: '7'
+outputs:
+  source-sha:
+    description: Exact source commit of the artifact.
+    value: ${{ steps.bundle.outputs.source-sha }}
+runs:
+  using: composite
+  steps:
+    - name: Validate documentation source
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        XOVA_ACTION_PATH: ${{ github.action_path }}
+        EXPECTED_SHA: ${{ inputs.expected-sha }}
+      run: node "$XOVA_ACTION_PATH/../../lib/cli.mjs" docs-source
+    - name: Check and build documentation
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        CHECK_COMMAND: ${{ inputs.check-command }}
+        BUILD_COMMAND: ${{ inputs.build-command }}
+      run: |
+        test -n "${CHECK_COMMAND//[[:space:]]/}"
+        test -n "${BUILD_COMMAND//[[:space:]]/}"
+        bash -e -o pipefail -c "$CHECK_COMMAND"
+        bash -e -o pipefail -c "$BUILD_COMMAND"
+    - name: Bundle documentation
+      id: bundle
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        XOVA_ACTION_PATH: ${{ github.action_path }}
+        EXPECTED_SHA: ${{ inputs.expected-sha }}
+        SITE_DIRECTORY: ${{ inputs.site-directory }}
+      run: node "$XOVA_ACTION_PATH/../../lib/cli.mjs" docs-bundle
+    - uses: actions/upload-artifact@v6
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ steps.bundle.outputs.artifact-directory }}
+        include-hidden-files: true
+        if-no-files-found: error
+        retention-days: ${{ inputs.retention-days }}
