@@ -18,10 +18,10 @@ test('configuration preserves the accepted/rejected JSON contract across every t
 test('missing settings receive the complete defaults while empty strings and null stay distinct', () => {
   assert.deepEqual(parseProjectConfig({ schemaVersion: 1, npm: { 'verify-command': 'npm run build' } }, 'release'), {
     schemaVersion: 1,
-    setup: { toolchain: 'node', 'node-version': '24', 'install-command': 'npm ci', 'working-directory': '.' },
+    setup: { toolchain: 'node', 'node-version': '24', 'install-command': 'npm ci', 'working-directory': '.', cache: { npm: '', pnpm: '', uv: '' } },
     code: null,
     npm: { 'package-manager': 'npm', 'verify-command': 'npm run build', 'package-verify-command': '', 'tag-prefix': 'v', 'npm-tag': 'auto', 'environment-name': 'npm-publish' },
-    docs: { provider: 'none', 'check-command': '', 'build-command': '', 'site-directory': '', 'working-directory': '.', 'install-command': 'npm ci', 'environment-name': '', 'concurrency-group': '', 'site-id': 'documentation', 'deploy-command': 'npm exec --no -- wrangler deploy', 'deployment-policy': 'latest-stable' },
+    docs: { provider: 'none', 'check-command': '', 'build-command': '', 'site-directory': '', 'working-directory': '.', 'install-command': 'npm ci', cache: { npm: '', pnpm: '', uv: '' }, 'environment-name': '', 'concurrency-group': '', 'site-id': 'documentation', 'deploy-command': 'npm exec --no -- wrangler deploy', 'deployment-policy': 'latest-stable' },
   })
   const raw = { schemaVersion: 1, setup: { 'working-directory': 'packages/widget', 'install-command': 'pnpm install --frozen-lockfile' }, npm: { 'verify-command': 'pnpm build', 'tag-prefix': '' } }
   const parsed = parseProjectConfig(clone(raw), 'release')
@@ -77,6 +77,28 @@ test('each task requires only the commands and delivery settings it consumes', (
     config.code = { 'check-command': 'npm test' }
     config.npm['verify-command'] = null
     assert.throws(() => parseProjectConfig(clone(config), task), /Invalid project configuration/)
+  }
+})
+
+test('dependency caches are explicit, strict and inherited or replaced for documentation', () => {
+  const input = sampleConfig()
+  input.setup.cache = { npm: 'pnpm-lock.yaml', pnpm: 'pnpm-lock.yaml', uv: 'tests/skills/uv.lock' }
+  for (const task of tasks) {
+    const parsed = parseProjectConfig(clone(input), task)
+    assert.deepEqual(parsed.docs.cache, input.setup.cache)
+    parsed.docs.cache.uv = ''
+    assert.equal(parsed.setup.cache.uv, 'tests/skills/uv.lock')
+    assert.deepEqual(parseProjectConfig({ ...clone(input), docs: { ...input.docs, cache: { pnpm: 'pnpm-lock.yaml' } } }, task).docs.cache,
+      { npm: '', pnpm: 'pnpm-lock.yaml', uv: '' })
+    assert.deepEqual(parseProjectConfig({ ...clone(input), docs: { ...input.docs, cache: {} } }, task).docs.cache,
+      { npm: '', pnpm: '', uv: '' })
+    for (const section of ['setup', 'docs']) {
+      for (const cache of [null, [], ['pnpm-lock.yaml'], 'pnpm', { unknown: 'lock' }, { npm: false }, { pnpm: ' ' }, { uv: 'a\nb' }]) {
+        const invalid = clone(input)
+        invalid[section].cache = cache
+        assert.throws(() => parseProjectConfig(invalid, task), /Invalid project configuration/)
+      }
+    }
   }
 })
 

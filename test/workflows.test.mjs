@@ -199,7 +199,7 @@ test('recipes select node or mise explicitly and reject unknown toolchains', t =
       const result = runStep(validate.run, project.cwd, { TOOLCHAIN: toolchain })
       assert.equal(result.status === 0, toolchain !== 'unknown')
     }
-    const selected = mode => setup.runs.steps.filter(item => item.uses && /^(actions\/setup-node|jdx\/mise-action)@/.test(item.uses)).filter(item => {
+    const selected = mode => setup.runs.steps.filter(item => item.uses && /^(actions\/setup-node|jdx\/mise-action)@/.test(item.uses) && !(item.uses.startsWith('actions/setup-node@') && item.with?.cache)).filter(item => {
       if (!item.if) return true
       const match = item.if.match(/^inputs\.toolchain == '([^']+)'$/)
       assert.ok(match, 'Unsupported toolchain selector')
@@ -238,7 +238,7 @@ test('all consumer and same-commit recipe calls satisfy actual action/workflow c
         checkInputs(parse(readFileSync(target, 'utf8')).on.workflow_call, job, file)
       }
       for (const item of job.steps || []) {
-        const match = item.uses?.match(/^(?:\$\/|xova-dev\/actions\/)actions\/([a-z-]+)(?:@.*)?$/)
+        const match = item.uses?.match(/^(?:\$\/|\.\/|xova-dev\/actions\/)actions\/([a-z-]+)(?:@.*)?$/)
         if (match) checkInputs(action(match[1]), item, file)
       }
       for (const dependency of [job.needs || []].flat()) assert.ok(dependency in document.jobs, file + ': unknown dependency ' + dependency)

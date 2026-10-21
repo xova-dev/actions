@@ -18,6 +18,10 @@ verify 任务执行 [test/verify-workflows.mjs](../test/verify-workflows.mjs)，
 
 托管任务沿用 CI 的 push、pull_request 和 workflow_dispatch 事件。本地添加 YAML 不代表已经执行；首次托管验收须在获得单独授权、完成 Git 交付或修订已存在远端后的 dispatch 才能进行。
 
+## 依赖缓存验证
+
+依赖缓存回归执行实际 setup 步骤，替代托管缓存/工具 API 和 uv 目录查询，覆盖命中与未命中都先恢复缓存再真实安装、npm 缓存选择传到代码命令、文档缓存整体替换、没有锁文件或 uv 时关闭缓存，以及 uv 锁文件缺失或目录查询失败时在安装前停止。配置测试保留未知字段、类型拒绝，验证独立默认值和文档继承。原生 setup-node/actions/cache 存储及托管提速仍需后续远端 CI 证据，本地测试不证明缓存传输或耗时收益。
+
 ## Valibot 等价验证
 
 迁移时用 3,390 个确定性的配置/任务样例对比冻结的 Ajv 8.20.0 实现，覆盖接受/拒绝、完整默认值补全和生成的输入 JSON Schema；Valibot 源码与打包后的结果均一致。实际 Matrix 配置和独立样例配置也完成了对比。这些是回归样例，不代表对所有可能 JSON 输入的形式化证明。

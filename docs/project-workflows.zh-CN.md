@@ -19,7 +19,8 @@
   "schemaVersion": 1,
   "setup": {
     "toolchain": "mise",
-    "install-command": "pnpm install --frozen-lockfile"
+    "install-command": "pnpm install --frozen-lockfile",
+    "cache": { "pnpm": "pnpm-lock.yaml", "npm": "pnpm-lock.yaml" }
   },
   "code": {
     "check-command": "pnpm check"
@@ -45,6 +46,16 @@
 
 setup 默认使用 Node 24、npm ci 和仓库根目录。文档默认继承其工作目录与安装命令，也可单独覆盖。纯文档项目可省略 code/npm；纯 npm 项目可省略 docs，不按产品名称设置特殊分支。
 
+### 依赖缓存
+
+`setup.cache` 将 `npm`、`pnpm`、`uv` 映射到相对于检出根目录的锁文件路径或 glob；即使命令在子目录运行，路径仍相对于检出根目录。默认关闭所有依赖缓存。例如 `{"pnpm":"pnpm-lock.yaml","npm":"pnpm-lock.yaml","uv":"tests/skills/uv.lock"}` 启用三份独立下载缓存。文档默认继承该对象，`docs.cache` 则整体替换：`{"pnpm":"pnpm-lock.yaml"}` 表示文档仅恢复 pnpm，`{}` 关闭文档的全部依赖缓存。
+
+Setup 先恢复选定工具链。原生 setup-node 缓存 npm/pnpm 下载存储，不重新选择 Node 版本；actions/cache 保存现有 uv 缓存，键包含 OS、架构、工具链文件和 uv 锁文件摘要。启用的 uv 模式必须匹配文件，不另装第二份 uv。npm 缓存同时导出 `NPM_CONFIG_CACHE`，供显式接受该设置的消费者子进程使用；隔离消费项目应接受该选择，或保留自己的缓存。
+
+缓存命中与未命中都执行锁定安装及选定检查。源码、node_modules、Python 虚拟环境、构建输出、测试结果和发布凭据不进入这些依赖缓存；最终来源与同一 tarball 校验保持不变。uv 缓存是可选项，为其他项目启用前应比较恢复、上传与重新下载 wheel 的实际耗时。
+
+### 任务必填项
+
 必填项跟随所选任务：
 
 | 任务 | 结构 Schema 之外的必填项 |
@@ -69,7 +80,7 @@ jobs:
     uses: xova-dev/actions/.github/workflows/check.yml@PENDING_ACTIONS_SHA
     with:
       source-sha: ${{ github.sha }}
-  documentation:
+  docs:
     permissions:
       contents: read
     uses: xova-dev/actions/.github/workflows/check.yml@PENDING_ACTIONS_SHA
@@ -79,6 +90,8 @@ jobs:
 ```
 
 PENDING_ACTIONS_SHA 是显式本地草稿标记。消费方交付前，必须替换为工具库实际交付且远端 CI 通过的完整 SHA，旧 SHA 不提供新接口。config-file 默认是 .github/xova.json。产品矩阵可以在共享代码检查成功后消费 source-sha/code-changed，OS/Node profiles 和浏览器、硬件验收仍由项目决定。
+
+普通 CI 在一个工作流中并行安排 `code` 和 `docs`，两者没有先后依赖，使用相同的原生来源 SHA。每个选定的 CI 事件都运行文档检查，不再维护第二份带路径过滤的文档工作流。纯文档优化只影响代码任务；docs 仍检查、构建并上传产物。两条路径都只有 contents:read，不接收部署凭据。发布和恢复保留独立入口、权限和精确来源门禁。工具库自身的 `check`、`verify` 还负责测试工具库及核对两条可复用路径的输出、产物，消费方无需复制这些任务。
 
 普通 CI 可显式开启 detect-changes，并同时声明 code.docs-only-command 和 code.docs-only-paths（Node path.matchesGlob 模式）。push 比较事件 before SHA，PR 比较合并基点。空差异、基点缺失/不可用、缺少优化配置时均完整检查。配置自身变化始终完整检查；没有基点的手动 CI 也完整执行。发布保持 detect-changes=false，提交标题或父提交 CI 成功都不豁免最终候选。输出只在检查成功后提供，代码命令后再次核对受跟踪源码、暂存区和 HEAD。
 

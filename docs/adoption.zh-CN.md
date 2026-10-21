@@ -33,7 +33,7 @@ docs-only 提供不需要 package.json 的最小构建器，并包含 .well-know
 
 ## Matrix
 
-更新后的样例包含 xova.json，消费方将其放到 .github/xova.json，将 YAML 放入 .github/workflows。CI/文档检查、发布和恢复读取同一配置；产品矩阵保留在 checks.yml。发布器在精确来源检查通过后构建，不再重复 lint、类型和示例检查。
+样例包含 xova.json，消费方将其放到 .github/xova.json，将 YAML 放入 .github/workflows。CI 在同一 SHA 上并行运行 code、docs，与发布和恢复读取同一配置，不再需要独立 docs.yml。产品矩阵保留在 checks.yml；发布器在精确来源检查通过后构建，不再重复 lint、类型和示例检查。setup.cache 选择 npm/pnpm 下载缓存，docs.cache 只选择 pnpm；checks.yml 保留产品专属 npm/Electron 缓存。
 
 样例用消费方自己的 checks.yml 同时服务 CI 和发布，保留精确原生候选上的六个 OS/Node 兼容性任务与三个 Electron 任务。发布入口等待产品检查，再调用 release.yml；docs-recover 只保留一次共享恢复调用。配置中沿用 github-pages 环境与并发锁，文档检查、发布和恢复共用 check(kind=docs)。
 
@@ -43,7 +43,9 @@ docs-only 提供不需要 package.json 的最小构建器，并包含 .well-know
 
 ## RSP
 
-RSP 仍是蓝图，本轮不迁移其仓库；使用入口前将 examples/rsp/xova.json 放到 .github/xova.json。样例使用 `RSP_INSTALL_ALLOW_NETWORK=1 pnpm release:check`，并安装锁定的 uv 环境以检查离线 Skill schema。网络许可使新 runner 可以填充独立的 .cache/rsp-package-install npm 缓存，pnpm/uv 安装不会填充它；RSP 其他场景的默认离线行为不变。
+将 examples/rsp/xova.json 放到 .github/xova.json，将 CI/Publish/恢复入口放入 .github/workflows。CI 并行运行 code、docs。Publish 始终对原生最终候选执行完整检查，再将已检查 SHA 传给 release.yml；发布门禁不使用纯文档优化。
+
+代码命令显式安装锁定的 uv 环境，并通过 `RSP_INSTALL_ALLOW_NETWORK=1 pnpm release:check` 执行离线 Skill schema 和产品检查。setup.cache 选择 pnpm/npm/uv 下载缓存，docs.cache 只选择 pnpm。安装包测试通过 NPM_CONFIG_CACHE 接受选定 npm 缓存，未显式指定时保留 .cache/rsp-package-install。网络许可只允许填充冷下载缓存，不跳过安装包检查，也不授权模型执行、发布或部署。
 
 Rules 和 Skills 仍是产品输入，不自动启动付费 agent/judge。显式检查覆盖 prepublishOnly，发布不重复执行它。Cloudflare 使用消费方锁定的 Wrangler、配置及已构建站点。
 

@@ -26,7 +26,7 @@
 
 | Action | 契约 |
 | --- | --- |
-| [setup](../actions/setup/action.yml) | 显式选择工具链并安装锁定依赖，检查、构建、发布和 Cloudflare 任务共同使用。 |
+| [setup](../actions/setup/action.yml) | 显式选择工具链，通过 cache JSON 输入选配 npm/pnpm/uv 下载缓存，命中与未命中都安装锁定依赖；检查、构建、发布和 Cloudflare 任务共同使用。 |
 | [project-config](../actions/project-config/action.yml) | 校验干净、精确来源中的受跟踪 JSON，补全默认值，可选分类普通 CI 改动。 |
 | [check-source](../actions/check-source/action.yml) | 必填 expected-sha；不读取配置，仅核对 HEAD、受跟踪文件和暂存区，成功后返回 source-sha。 |
 | [npm-publish](../actions/npm-publish/action.yml) | 必填 release-tag、verify-command；可选 expected-sha、tag-prefix（v）、working-directory（.）、npm-tag（auto）、package-manager（npm）及 package-verify-command；发布成功后返回 source-sha、version、tarball-sha256 和 publication-artifact。 |

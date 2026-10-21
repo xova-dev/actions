@@ -7,14 +7,16 @@ plus release-it presets and a short release Skill. Projects own their tools,
 checks, release contents, environments and deployment policy. Organization defaults
 and workflow templates stay in `xova-dev/.github`.
 
-The stable interface has not been released. Every `@v1` example is a placeholder. Pin a
-verified full commit SHA after publishing and validating the interface. Matrix has a
-local integration draft; no consumer migration has passed hosted acceptance, and
-npm OIDC and real deployments remain unvalidated.
+The stable interface has not been released. Every `@v1` example is a placeholder.
+Use PENDING_ACTIONS_SHA for local consumer drafts that need uncommitted interfaces,
+then pin the delivered toolkit's full SHA after its remote CI passes. Code/docs CI
+does not establish npm OIDC, publication or deployment acceptance.
 
 Start with [project workflows](docs/project-workflows.md): one declarative configuration for code checks, documentation checks, publication and recovery. Product matrices and event policy remain in consumers; setup and common checks stay here. Custom jobs compose [operation actions](docs/architecture.md#public-actions) directly.
 
 Required settings follow the selected task; unrelated commands may be omitted while unknown fields and invalid values still fail. Each check job reads configuration once and uses independent source guards around the work.
+
+Ordinary consumer CI runs `code` and `docs` in parallel in one workflow. Optional download caches for npm, pnpm and uv are declared once in project JSON; documentation can select a smaller cache set. Locked installation and checks still run on cache hits. See [cache settings and CI wiring](docs/project-workflows.md#dependency-caches).
 
 Successful npm jobs save a [publication result and recovery summary](docs/publication-results.md). CI [tests both reusable check paths](docs/verification.md) with real code assertions, workflow outputs and downloaded documentation artifacts, without publishing or deploying.
 

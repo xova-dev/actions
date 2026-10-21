@@ -68,7 +68,7 @@ test('RSP consumer verification installs a packed package with a cold npm cache'
     name: 'xova-rsp-install-fixture', version: '1.0.0',
     dependencies: { 'xova-cold-cache-dependency': registry + '/dependency.tgz' },
   }, "module.exports = require('xova-cold-cache-dependency')\n")
-  project.write('package.json', { name: 'xova-rsp-check-fixture', version: '1.0.0', private: true, scripts: { 'release:check': 'node verify-clean-install.mjs' } })
+  project.write('package.json', { name: 'xova-rsp-check-fixture', version: '1.0.0', private: true, scripts: { 'test:pack': 'node verify-clean-install.mjs' } })
   project.write('verify-clean-install.mjs', [
     "import assert from 'node:assert/strict'",
     "import { spawnSync } from 'node:child_process'",
@@ -87,7 +87,7 @@ test('RSP consumer verification installs a packed package with a cold npm cache'
     "writeFileSync('check-passed', String(allowNetwork))",
   ].join('\n'))
   const config = parseProjectConfig(JSON.parse(readFileSync(join(root, 'examples/rsp/xova.json'), 'utf8')), 'release')
-  const command = config.npm['verify-command']
+  const command = config.npm['package-verify-command']
   const result = await new Promise((resolve, reject) => {
     const child = spawn('bash', ['-e', '-o', 'pipefail', '-c', command], {
       cwd: project.cwd, timeout: 20000,

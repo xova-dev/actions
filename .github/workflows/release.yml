@@ -58,6 +58,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: "24"
+          package-manager-cache: false
       - id: config
         uses: $/actions/project-config
         with:
@@ -115,6 +116,7 @@ jobs:
           node-version: ${{ fromJSON(needs.source.outputs.config).setup.node-version }}
           install-command: ${{ fromJSON(needs.source.outputs.config).setup.install-command }}
           working-directory: ${{ fromJSON(needs.source.outputs.config).setup.working-directory }}
+          cache: ${{ toJSON(fromJSON(needs.source.outputs.config).setup.cache) }}
       - id: publish
         uses: $/actions/npm-publish
         with:

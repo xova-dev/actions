@@ -19,7 +19,8 @@ These are separate permission boundaries: PR checks need contents:read only. All
   "schemaVersion": 1,
   "setup": {
     "toolchain": "mise",
-    "install-command": "pnpm install --frozen-lockfile"
+    "install-command": "pnpm install --frozen-lockfile",
+    "cache": { "pnpm": "pnpm-lock.yaml", "npm": "pnpm-lock.yaml" }
   },
   "code": {
     "check-command": "pnpm check"
@@ -45,6 +46,16 @@ The editable [Valibot definition](../config/project.mjs) owns settings, defaults
 
 setup defaults to Node 24, npm ci and repository root. Documentation inherits its working directory/install command unless overridden. A docs-only project can omit code/npm; an npm-only project can omit docs. No product name has special behavior.
 
+### Dependency caches
+
+`setup.cache` maps `npm`, `pnpm` and `uv` to a lockfile path or glob relative to the checkout root, including when commands run in a subdirectory. All caches default to disabled. For example, `{"pnpm":"pnpm-lock.yaml","npm":"pnpm-lock.yaml","uv":"tests/skills/uv.lock"}` enables three independent download caches. Documentation inherits this object; `docs.cache` replaces it in full, so `{"pnpm":"pnpm-lock.yaml"}` restores only pnpm for docs and `{}` disables all dependency caches there.
+
+Setup restores the selected toolchain first. Native setup-node caching manages npm/pnpm download stores without selecting another Node version; actions/cache stores the existing uv cache with OS, architecture, toolchain-file and uv-lock hashes. A selected uv pattern must match a file. No second uv installation is introduced. npm caching also exports `NPM_CONFIG_CACHE` for consumer subprocesses that explicitly accept it. Custom isolated consumers must honor that selection or retain their own cache.
+
+Cache hits and misses both run the locked installation and all selected checks. Source, node_modules, Python virtual environments, build outputs, test results and publication credentials are not part of these dependency caches. Final-source and same-tarball checks are unchanged. uv caching is optional; measure restore/upload time against downloading wheels before enabling it for other projects.
+
+### Task requirements
+
 Required settings follow the selected task:
 
 | Task | Required settings beyond the structural Schema |
@@ -69,7 +80,7 @@ jobs:
     uses: xova-dev/actions/.github/workflows/check.yml@PENDING_ACTIONS_SHA
     with:
       source-sha: ${{ github.sha }}
-  documentation:
+  docs:
     permissions:
       contents: read
     uses: xova-dev/actions/.github/workflows/check.yml@PENDING_ACTIONS_SHA
@@ -79,6 +90,8 @@ jobs:
 ```
 
 PENDING_ACTIONS_SHA is an explicit local draft marker. Before consumer delivery, replace it with the full SHA of the delivered toolkit revision with passing remote CI; an older SHA cannot provide this new interface. config-file defaults to .github/xova.json. Product matrices can consume source-sha/code-changed after successful code checks, and still own OS/Node profiles and browser/hardware acceptance.
+
+Ordinary CI places `code` and `docs` in one workflow with no dependency between them, using the same native source SHA. Run docs for every selected CI event rather than maintaining a second path-filtered workflow. A code/docs-only optimization affects the code job alone; docs still checks, builds and uploads its artifact. Both jobs retain contents:read and receive no deployment credentials. Release and recovery stay separate workflows with their existing permissions and exact-source gates. The toolkit's own `check` and `verify` jobs additionally test the toolkit and validate both reusable outputs/artifacts; consumers need not copy those jobs.
 
 Ordinary CI can opt into detect-changes and declare both code.docs-only-command and code.docs-only-paths (Node path.matchesGlob patterns). Pushes compare the event before SHA; PRs compare the merge base. Empty changes, missing/unavailable bases or absent optimization settings run full checks. Configuration changes always run full checks; manual CI without a base does too. Release callers keep detect-changes=false: neither commit titles nor parent CI exempt the final candidate. Outputs are gated by successful checks; tracked source/index/HEAD are rechecked after code commands.
 

@@ -18,6 +18,10 @@ These jobs explicitly select the node toolchain and use only contents:read. They
 
 The hosted jobs run on the existing CI push, pull_request and workflow_dispatch events. Adding their YAML locally does not execute them: their first hosted acceptance requires separately authorized Git delivery or dispatch with the revision available remotely.
 
+## Dependency cache verification
+
+Dependency-cache regressions execute the shipped setup steps, replacing hosted cache/tool APIs and the uv directory lookup. They cover hits/misses before real installation, npm cache selection reaching the code command, docs cache replacement, disabled caches without lockfiles/uv, and missing uv locks or failed lookup stopping before installation. Configuration tests preserve unknown-field/type rejection and validate independent defaults and docs inheritance. Native setup-node/actions/cache storage and hosted speed gains require subsequent remote CI evidence; local tests do not establish cache transport or timing.
+
 ## Valibot equivalence verification
 
 The migration compared 3,390 deterministic configuration/task cases against the frozen Ajv 8.20.0 implementation, including acceptance/rejection, complete normalized defaults and the generated input JSON Schema. Source and bundled Valibot results matched. The actual Matrix configuration and the independent example configuration were also compared. These are regression cases, not a formal proof over every possible JSON input.

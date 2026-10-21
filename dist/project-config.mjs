@@ -305,6 +305,49 @@ function string(message$1) {
   });
 }
 // @__NO_SIDE_EFFECTS__
+function _subIssues(datasets) {
+  let issues;
+  if (datasets) for (const dataset of datasets) if (issues) for (const issue of dataset.issues) issues.push(issue);
+  else issues = dataset.issues;
+  return issues;
+}
+// @__NO_SIDE_EFFECTS__
+function union(options, message$1) {
+  return _standardSchema({
+    kind: "schema",
+    type: "union",
+    reference: union,
+    expects: /* @__PURE__ */ _joinExpects(options.map((option) => option.expects), "|"),
+    async: false,
+    options,
+    message: message$1,
+    "~run"(dataset, config$1) {
+      let validDataset;
+      let typedDatasets;
+      let untypedDatasets;
+      for (const schema of this.options) {
+        const optionDataset = schema["~run"]({ value: dataset.value }, config$1);
+        if (optionDataset.typed) if (optionDataset.issues) if (typedDatasets) typedDatasets.push(optionDataset);
+        else typedDatasets = [optionDataset];
+        else {
+          validDataset = optionDataset;
+          break;
+        }
+        else if (untypedDatasets) untypedDatasets.push(optionDataset);
+        else untypedDatasets = [optionDataset];
+      }
+      if (validDataset) return validDataset;
+      if (typedDatasets) {
+        if (typedDatasets.length === 1) return typedDatasets[0];
+        _addIssue(this, "type", dataset, config$1, { issues: /* @__PURE__ */ _subIssues(typedDatasets) });
+        dataset.typed = true;
+      } else if (untypedDatasets?.length === 1) return untypedDatasets[0];
+      else _addIssue(this, "type", dataset, config$1, { issues: /* @__PURE__ */ _subIssues(untypedDatasets) });
+      return dataset;
+    }
+  });
+}
+// @__NO_SIDE_EFFECTS__
 function pipe(...pipe$1) {
   return _standardSchema({
     ...pipe$1[0],
@@ -335,6 +378,12 @@ function safeParse(schema, input, config$1) {
 // config/project.mjs
 var text = pipe(string(), regex(/^[^\r\n\0]*$/));
 var command = pipe(string(), regex(/^(?=[\s\S]*\S)[^\r\n\0]*$/));
+var cachePath = union([literal(""), command]);
+var cache = strictObject({
+  npm: optional(cachePath, ""),
+  pnpm: optional(cachePath, ""),
+  uv: optional(cachePath, "")
+});
 var projectSchema = strictObject({
   $schema: optional(string()),
   schemaVersion: literal(1),
@@ -342,7 +391,8 @@ var projectSchema = strictObject({
     toolchain: optional(picklist(["node", "mise"]), "node"),
     "node-version": optional(command, "24"),
     "install-command": optional(command, "npm ci"),
-    "working-directory": optional(command, ".")
+    "working-directory": optional(command, "."),
+    cache: optional(cache, {})
   }), {}),
   code: optional(strictObject({
     "check-command": optional(command),
@@ -364,6 +414,7 @@ var projectSchema = strictObject({
     "site-directory": optional(text, ""),
     "working-directory": optional(command),
     "install-command": optional(command),
+    cache: optional(cache),
     "environment-name": optional(text, ""),
     "concurrency-group": optional(text, ""),
     "site-id": optional(command, "documentation"),
@@ -378,7 +429,11 @@ function required(value, keys, name) {
 function parseProjectConfig(input, task) {
   if (!["code", "docs", "release", "recovery", "deploy"].includes(task))
     throw new Error("Invalid project setting: task");
-  const array2 = Array.isArray(input) ? ["", input] : Object.entries(input ?? {}).find(([, value]) => Array.isArray(value));
+  const array2 = [
+    ["", input],
+    ...Object.entries(input ?? {}),
+    ...["setup", "docs"].map((section) => [section + "/cache", input?.[section]?.cache])
+  ].find(([, value]) => Array.isArray(value));
   if (array2) throw new Error("Invalid project configuration at /" + array2[0] + ": expected object");
   const result = safeParse(projectSchema, input);
   if (!result.success) {
@@ -389,6 +444,7 @@ function parseProjectConfig(input, task) {
   const { setup, code, npm, docs } = result.output;
   docs["working-directory"] ??= setup["working-directory"];
   docs["install-command"] ??= setup["install-command"];
+  docs.cache ??= { ...setup.cache };
   if (["docs", "recovery"].includes(task) || task === "release" && docs.provider !== "none")
     required(docs, ["check-command", "build-command", "site-directory"], "docs");
   if (task === "deploy" && docs.provider === "cloudflare") required(docs, ["site-directory"], "docs");

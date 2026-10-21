@@ -132,3 +132,24 @@ test('standard workflows expose only configuration and runtime selectors', () =>
     for (const id of ['source', 'documentation']) assert.deepEqual(workflow(name).jobs[id].permissions, { contents: 'read' })
   }
 })
+
+test('the shared check job applies setup caches to code and the documentation replacement to docs', t => {
+  for (const kind of ['code', 'docs']) {
+    const project = configured(t, config => {
+      config.setup.cache = { npm: 'package.json' }
+      config.docs.cache = {}
+      config.code['check-command'] = 'test -n "$NPM_CONFIG_CACHE"'
+    })
+    const caches = []
+    const checked = check(project, { kind }, (uses, inputs) => {
+      if (inputs.cache) caches.push(inputs.cache)
+      return {}
+    })
+    assert.equal(checked.status, 0, checked.logs)
+    assert.deepEqual(caches, kind === 'code' ? ['npm'] : [])
+  }
+  for (const [name, id, section] of [['check', 'check', 'setup'], ['release', 'publish', 'setup'], ['docs-deploy', 'cloudflare', 'docs']]) {
+    const step = workflow(name).jobs[id].steps.find(step => step.uses === '$/actions/setup')
+    assert.match(step.with.cache, new RegExp('\\.' + section + '\\.cache'))
+  }
+})

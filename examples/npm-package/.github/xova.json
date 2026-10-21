@@ -1,5 +1,6 @@
 {
   "schemaVersion": 1,
+  "setup": { "cache": { "npm": "package-lock.json" } },
   "npm": {
     "verify-command": "npm test && npm run build",
     "package-verify-command": "node check-package.mjs",

@@ -13,6 +13,9 @@ inputs:
   working-directory:
     description: Project directory in the checkout.
     default: '.'
+  cache:
+    description: JSON mapping npm, pnpm and uv to lockfile paths or globs relative to the checkout; empty values disable that cache.
+    default: '{}'
 runs:
   using: composite
   steps:
@@ -25,10 +28,49 @@ runs:
       if: inputs.toolchain == 'node'
       with:
         node-version: ${{ inputs.node-version }}
+        package-manager-cache: false
     - uses: jdx/mise-action@v4.3.0
       if: inputs.toolchain == 'mise'
       with:
         cache: true
+    - name: Select npm download cache
+      if: fromJSON(inputs.cache).npm
+      shell: bash
+      run: |
+        cache_directory=$(npm config get cache)
+        test -n "$cache_directory"
+        printf 'NPM_CONFIG_CACHE=%s\n' "$cache_directory" >> "$GITHUB_ENV"
+    - name: Cache npm downloads
+      if: fromJSON(inputs.cache).npm
+      uses: actions/setup-node@v7
+      with:
+        cache: npm
+        cache-dependency-path: ${{ fromJSON(inputs.cache).npm }}
+        package-manager-cache: false
+    - name: Cache pnpm store
+      if: fromJSON(inputs.cache).pnpm
+      uses: actions/setup-node@v7
+      with:
+        cache: pnpm
+        cache-dependency-path: ${{ fromJSON(inputs.cache).pnpm }}
+        package-manager-cache: false
+    - name: Locate uv cache
+      id: uv-cache
+      if: fromJSON(inputs.cache).uv
+      shell: bash
+      env:
+        LOCK_HASH: ${{ hashFiles(fromJSON(inputs.cache).uv) }}
+      run: |
+        test -n "$LOCK_HASH"
+        cache_directory=$(uv cache dir)
+        test -n "$cache_directory"
+        printf 'path=%s\n' "$cache_directory" >> "$GITHUB_OUTPUT"
+    - name: Cache uv downloads
+      if: fromJSON(inputs.cache).uv
+      uses: actions/cache@v6
+      with:
+        path: ${{ steps.uv-cache.outputs.path }}
+        key: uv-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.toml', 'mise.lock') }}-${{ hashFiles(fromJSON(inputs.cache).uv) }}
     - name: Install locked dependencies
       shell: bash
       working-directory: ${{ inputs.working-directory }}

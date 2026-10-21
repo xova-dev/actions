@@ -68,7 +68,7 @@ consumer application or real Cloudflare deployment.
 
 ## Matrix
 
-The updated blueprint includes xova.json; place it at .github/xova.json and the YAML files under .github/workflows in the consumer. CI/docs checks, publication and recovery read that one configuration. Product matrices stay in checks.yml; the publisher builds after those exact-source checks rather than repeating lint/types/examples.
+The blueprint includes xova.json; place it at .github/xova.json and the YAML files under .github/workflows in the consumer. CI runs code/docs in parallel on one SHA and reads that configuration with publication/recovery; no standalone docs.yml is needed. Product matrices stay in checks.yml; the publisher builds after those exact-source checks rather than repeating lint/types/examples. setup.cache selects npm/pnpm download caches, while docs.cache selects only pnpm. Product-specific npm/Electron caches remain in checks.yml.
 
 The example uses one consumer-owned checks.yml for CI and publication. It preserves six OS/Node compatibility jobs and three Electron jobs on the exact native candidate. The publish entry waits for that product workflow, then calls release.yml; docs-recover is one shared recovery call. Keep the existing github-pages environment and concurrency group in configuration. Documentation checks, release and recovery use the same check(kind=docs) implementation.
 
@@ -78,10 +78,9 @@ Uncommitted orchestration cannot be referenced through an older verified toolkit
 
 ## RSP
 
-RSP remains a blueprint; this change does not migrate its repository. Copy examples/rsp/xova.json to .github/xova.json. The example uses `RSP_INSTALL_ALLOW_NETWORK=1 pnpm release:check` and installs the
-locked uv environment for offline Skill schemas. The network opt-in lets a fresh
-runner populate the distinct .cache/rsp-package-install npm cache; pnpm/uv installs
-do not populate it. RSP's default offline behavior elsewhere stays unchanged.
+Copy examples/rsp/xova.json to .github/xova.json and its CI/Publish/recovery entries to .github/workflows. CI runs code/docs in parallel. Publish always runs complete checks on the native final candidate before release.yml and passes its checked SHA; docs-only optimization never applies to that release gate.
+
+The code command explicitly installs the locked uv environment and runs `RSP_INSTALL_ALLOW_NETWORK=1 pnpm release:check` for offline Skill schemas and product checks. setup.cache selects pnpm/npm/uv downloads; docs.cache selects only pnpm. Installed-package tests honor the selected npm cache through NPM_CONFIG_CACHE, retaining .cache/rsp-package-install when no explicit cache is supplied. Network permission permits filling a cold download cache; it does not skip installed-package checks or authorize models, publication or deployment.
 
 Rules and Skills remain product inputs. Do not start paid agents/judges automatically.
 Explicit checks cover prepublishOnly; publication does not repeat it. Cloudflare

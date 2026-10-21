@@ -59,7 +59,7 @@ function recoveryGraph() {
 
 function assertRecoveryBoundary(graph) {
   const visited = new Set()
-  const hosted = new Set(['actions/checkout', 'actions/setup-node', 'jdx/mise-action', 'actions/upload-artifact', 'actions/download-artifact', 'actions/configure-pages', 'actions/upload-pages-artifact', 'actions/deploy-pages'])
+  const hosted = new Set(['actions/checkout', 'actions/setup-node', 'jdx/mise-action', 'actions/cache', 'actions/upload-artifact', 'actions/download-artifact', 'actions/configure-pages', 'actions/upload-pages-artifact', 'actions/deploy-pages'])
   function steps(items) {
     for (const step of items) {
       if (!step.uses) continue

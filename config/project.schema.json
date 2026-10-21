@@ -32,6 +32,50 @@
           "type": "string",
           "pattern": "^(?=[\\s\\S]*\\S)[^\\r\\n\\0]*$",
           "default": "."
+        },
+        "cache": {
+          "type": "object",
+          "properties": {
+            "npm": {
+              "anyOf": [
+                {
+                  "const": ""
+                },
+                {
+                  "type": "string",
+                  "pattern": "^(?=[\\s\\S]*\\S)[^\\r\\n\\0]*$"
+                }
+              ],
+              "default": ""
+            },
+            "pnpm": {
+              "anyOf": [
+                {
+                  "const": ""
+                },
+                {
+                  "type": "string",
+                  "pattern": "^(?=[\\s\\S]*\\S)[^\\r\\n\\0]*$"
+                }
+              ],
+              "default": ""
+            },
+            "uv": {
+              "anyOf": [
+                {
+                  "const": ""
+                },
+                {
+                  "type": "string",
+                  "pattern": "^(?=[\\s\\S]*\\S)[^\\r\\n\\0]*$"
+                }
+              ],
+              "default": ""
+            }
+          },
+          "required": [],
+          "additionalProperties": false,
+          "default": {}
         }
       },
       "required": [],
@@ -135,6 +179,49 @@
         "install-command": {
           "type": "string",
           "pattern": "^(?=[\\s\\S]*\\S)[^\\r\\n\\0]*$"
+        },
+        "cache": {
+          "type": "object",
+          "properties": {
+            "npm": {
+              "anyOf": [
+                {
+                  "const": ""
+                },
+                {
+                  "type": "string",
+                  "pattern": "^(?=[\\s\\S]*\\S)[^\\r\\n\\0]*$"
+                }
+              ],
+              "default": ""
+            },
+            "pnpm": {
+              "anyOf": [
+                {
+                  "const": ""
+                },
+                {
+                  "type": "string",
+                  "pattern": "^(?=[\\s\\S]*\\S)[^\\r\\n\\0]*$"
+                }
+              ],
+              "default": ""
+            },
+            "uv": {
+              "anyOf": [
+                {
+                  "const": ""
+                },
+                {
+                  "type": "string",
+                  "pattern": "^(?=[\\s\\S]*\\S)[^\\r\\n\\0]*$"
+                }
+              ],
+              "default": ""
+            }
+          },
+          "required": [],
+          "additionalProperties": false
         },
         "environment-name": {
           "type": "string",

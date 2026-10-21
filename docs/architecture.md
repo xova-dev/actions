@@ -34,7 +34,7 @@ Each action.yml owns the authoritative input/output descriptions.
 
 | Action | Contract |
 | --- | --- |
-| [setup](../actions/setup/action.yml) | Explicit toolchain selection and locked dependency installation, shared by check/build/publish/Cloudflare jobs. |
+| [setup](../actions/setup/action.yml) | Explicit toolchain selection, optional npm/pnpm/uv download caches via the cache JSON input, and locked installation on both hits and misses; shared by check/build/publish/Cloudflare jobs. |
 | [project-config](../actions/project-config/action.yml) | Validate tracked JSON from a clean exact source, normalize defaults, and optionally classify ordinary CI changes. |
 | [check-source](../actions/check-source/action.yml) | Requires expected-sha; verifies HEAD and clean tracked files/index without reading configuration, then returns source-sha. |
 | [npm-publish](../actions/npm-publish/action.yml) | Requires release-tag and verify-command; optional expected-sha, tag-prefix (v), working-directory (.), npm-tag (auto), package-manager (npm) and package-verify-command. Returns source-sha/version, tarball-sha256 and publication-artifact after publication. |

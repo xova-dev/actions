@@ -13,7 +13,7 @@ function assertReadOnlyBoundary(ci, shared, definition, setup = action('setup'))
   assert.deepEqual(shared.permissions, { contents: 'read' })
   assert.equal(ci.env, undefined)
   assert.equal(shared.env, undefined)
-  const allowed = new Set(['actions/checkout', 'actions/setup-node', 'jdx/mise-action', 'actions/upload-artifact', 'actions/download-artifact'])
+  const allowed = new Set(['actions/checkout', 'actions/setup-node', 'jdx/mise-action', 'actions/cache', 'actions/upload-artifact', 'actions/download-artifact'])
   const local = { 'docs-build': definition, setup, 'project-config': action('project-config'), 'check-source': action('check-source') }
   function inspect(steps) {
     for (const step of steps) {

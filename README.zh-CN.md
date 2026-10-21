@@ -4,11 +4,13 @@
 
 用于公开 npm 包发布与文档交付的可组合 GitHub Actions，附带 release-it 预设和简短的发布 Skill。项目拥有工具链、检查、发布材料、环境和部署策略；组织默认配置与模板仍归 `xova-dev/.github`。
 
-当前尚未发布稳定接口，所有 `@v1` 都是占位引用。接口发布并验证后，应固定到已核实的完整提交 SHA。Matrix 已有本地接入草稿，但尚无消费项目完成托管环境验收，真实 npm OIDC 与部署仍未验收。
+当前尚未发布稳定接口，所有 `@v1` 都是占位引用。需要未提交接口的本地消费草稿使用 PENDING_ACTIONS_SHA；工具库交付且远端 CI 通过后，再固定到对应完整 SHA。代码和文档 CI 不代表 npm OIDC、发布或部署已经验收。
 
 优先使用[项目工作流](docs/project-workflows.zh-CN.md)：一份声明式配置覆盖代码检查、文档检查、发布与恢复。产品矩阵和事件策略留在消费方，setup 和通用校验留在本仓库；自定义任务直接组合[操作 actions](docs/architecture.zh-CN.md#公共-actions)。
 
 必填项按任务判断，未使用的命令可以省略，未知字段和无效值仍会报错。每个检查任务读取一次配置，前后使用独立来源门禁。
+
+消费方的普通 CI 在同一个工作流中并行运行 `code`、`docs`。npm、pnpm、uv 下载缓存通过项目 JSON 统一选配，文档可选择更小的缓存集合；命中后仍执行锁定安装和检查。详见[缓存配置与 CI 接线](docs/project-workflows.zh-CN.md#依赖缓存)。
 
 npm 成功后保存[发布结果与恢复摘要](docs/publication-results.zh-CN.md)。CI [验证可复用检查流程的两条路径](docs/verification.zh-CN.md)，覆盖真实代码断言、工作流输出和下载后的文档产物，不发布或部署。
 

@@ -1,0 +1,23 @@
+name: CI
+on:
+  pull_request: null
+  push:
+    branches:
+      - main
+  workflow_dispatch: null
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  code:
+    uses: xova-dev/actions/.github/workflows/check.yml@v1
+    with:
+      source-sha: ${{ github.sha }}
+      detect-changes: true
+  docs:
+    uses: xova-dev/actions/.github/workflows/check.yml@v1
+    with:
+      kind: docs
+      source-sha: ${{ github.sha }}
