@@ -191,14 +191,15 @@ test('artifact directory allocation failures stop before provider download', t =
 
 test('recipes select node or mise explicitly and reject unknown toolchains', t => {
   const project = fixture(t)
-  for (const name of ['npm-publish', 'docs-build']) {
-    const job = Object.values(workflow(name).jobs)[0]
-    const validate = job.steps.find(item => item.name === 'Validate toolchain selection')
+  const setup = action('setup')
+  for (const job of [workflow('release').jobs.publish, workflow('check').jobs.check]) {
+    assert.equal(job.steps.filter(item => item.uses === '$/actions/setup').length, 1)
+    const validate = setup.runs.steps.find(item => item.name === 'Validate toolchain selection')
     for (const toolchain of ['node', 'mise', 'unknown']) {
       const result = runStep(validate.run, project.cwd, { TOOLCHAIN: toolchain })
       assert.equal(result.status === 0, toolchain !== 'unknown')
     }
-    const selected = mode => job.steps.filter(item => item.uses && /^(actions\/setup-node|jdx\/mise-action)@/.test(item.uses)).filter(item => {
+    const selected = mode => setup.runs.steps.filter(item => item.uses && /^(actions\/setup-node|jdx\/mise-action)@/.test(item.uses)).filter(item => {
       if (!item.if) return true
       const match = item.if.match(/^inputs\.toolchain == '([^']+)'$/)
       assert.ok(match, 'Unsupported toolchain selector')

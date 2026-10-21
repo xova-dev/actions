@@ -12,7 +12,11 @@ verified full commit SHA after publishing and validating the interface. Matrix h
 local integration draft; no consumer migration has passed hosted acceptance, and
 npm OIDC and real deployments remain unvalidated.
 
-For standard publication and documentation recovery, start with the [shared orchestration](docs/orchestration.md). Consumers keep product checks and thin event entries; generic source validation, deployment sequencing and recovery stay here.
+Start with [project workflows](docs/project-workflows.md): one declarative configuration for code checks, documentation checks, publication and recovery. Product matrices and event policy remain in consumers; setup and common checks stay here. Custom jobs compose [operation actions](docs/architecture.md#public-actions) directly.
+
+Required settings follow the selected task; unrelated commands may be omitted while unknown fields and invalid values still fail. Each check job reads configuration once and uses independent source guards around the work.
+
+Successful npm jobs save a [publication result and recovery summary](docs/publication-results.md). CI [tests both reusable check paths](docs/verification.md) with real code assertions, workflow outputs and downloaded documentation artifacts, without publishing or deploying.
 
 ## Choose an entry
 
@@ -102,6 +106,7 @@ on the first failure. Review any generated changes together with the source chan
 
 semver 7.8.5 is distributed in dist/semver.mjs with dist/semver.LICENSE; keep both
 files in Git so consumers do not need to install toolkit dependencies.
+Project settings and task rules are defined in config/project.mjs with Valibot. pnpm build generates config/project.schema.json through the official converter and bundles the validator in dist/project-config.mjs with its visible dist/valibot.LICENSE. Edit the source definition, not generated files.
 .gitattributes marks only dist/*.mjs as generated for GitHub diffs; licenses remain
 visible. After upgrading semver or changing the bundle entry, run pnpm check
 or mise exec -- pnpm build to regenerate only. CI uses pnpm build:check to compare

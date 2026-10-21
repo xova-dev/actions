@@ -1,0 +1,41 @@
+name: Read project configuration
+description: Resolve declarative project settings from an exact, clean source commit.
+inputs:
+  config-file:
+    description: Nonempty tracked JSON configuration path relative to the repository root.
+    default: .github/xova.json
+  expected-sha:
+    description: Exact checked-out source commit.
+    required: true
+  task:
+    description: code, docs, release, recovery or deploy.
+    required: true
+  detect-changes:
+    description: Allow docs-only optimization for ordinary code checks.
+    default: 'false'
+  base-sha:
+    description: Optional native event base SHA; missing bases run full checks.
+    default: ''
+outputs:
+  config:
+    description: Validated configuration with explicit defaults.
+    value: ${{ steps.config.outputs.config }}
+  source-sha:
+    description: Exact configuration source.
+    value: ${{ steps.config.outputs.source-sha }}
+  code-changed:
+    description: Whether complete code checks are required.
+    value: ${{ steps.config.outputs.code-changed }}
+runs:
+  using: composite
+  steps:
+    - id: config
+      shell: bash
+      env:
+        XOVA_ACTION_PATH: ${{ github.action_path }}
+        CONFIG_FILE: ${{ inputs.config-file }}
+        EXPECTED_SHA: ${{ inputs.expected-sha }}
+        PROJECT_TASK: ${{ inputs.task }}
+        DETECT_CHANGES: ${{ inputs.detect-changes }}
+        BASE_SHA: ${{ inputs.base-sha }}
+      run: node "$XOVA_ACTION_PATH/../../lib/cli.mjs" project-config

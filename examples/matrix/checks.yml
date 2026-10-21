@@ -5,9 +5,9 @@ on:
       source-sha:
         type: string
         required: true
-      code-checks:
+      detect-changes:
         type: boolean
-        default: true
+        default: false
       full:
         type: boolean
         default: false
@@ -20,29 +20,13 @@ permissions:
 jobs:
   quality:
     name: Lint and types
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.source-sha }}
-          persist-credentials: false
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24.x
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - if: ${{ !inputs.code-checks }}
-        run: pnpm lint
-      - name: Check product workflow wiring
-        run: pnpm exec vitest run test/scripts/release-workflows.test.js
-      - if: inputs.code-checks
-        run: pnpm release:check
-    outputs:
+    uses: xova-dev/actions/.github/workflows/check.yml@v1
+    with:
       source-sha: ${{ inputs.source-sha }}
+      detect-changes: ${{ inputs.detect-changes }}
   compatibility:
-    if: inputs.code-checks
+    needs: quality
+    if: needs.quality.outputs.code-changed == 'true'
     name: ${{ matrix.os }} / Node ${{ matrix.node }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
@@ -83,7 +67,8 @@ jobs:
           npm_config_cache: ${{ runner.temp }}/matrix-npm-cache
         run: pnpm test:pack --profile ${{ (inputs.full || (matrix.os == 'ubuntu-latest' && matrix.node == '24.x')) && 'full' || (runner.os == 'Linux' && 'daily' || 'platform') }}
   electron:
-    if: inputs.code-checks
+    needs: quality
+    if: needs.quality.outputs.code-changed == 'true'
     name: Electron / ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20

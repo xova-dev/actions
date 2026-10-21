@@ -1,0 +1,24 @@
+name: CI
+on:
+  pull_request: null
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      full:
+        description: Run the full host matrix on all OS / Node combinations
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  checks:
+    uses: ./.github/workflows/checks.yml
+    with:
+      source-sha: ${{ github.sha }}
+      detect-changes: true
+      full: ${{ inputs.full || false }}

@@ -2,48 +2,19 @@ name: Deploy checked documentation
 on:
   workflow_call:
     inputs:
-      provider:
+      config-file:
+        description: Tracked project JSON configuration at the selected source.
         type: string
-        required: true
+        default: .github/xova.json
       expected-sha:
         type: string
         required: true
       release-tag:
         type: string
         default: ""
-      deployment-policy:
-        type: string
-        default: latest-stable
       artifact-name:
         type: string
         default: documentation
-      environment-name:
-        type: string
-        default: ""
-      concurrency-group:
-        type: string
-        default: ""
-      site-id:
-        type: string
-        default: documentation
-      site-directory:
-        type: string
-        default: ""
-      working-directory:
-        type: string
-        default: .
-      toolchain:
-        type: string
-        default: node
-      node-version:
-        type: string
-        default: "24"
-      install-command:
-        type: string
-        default: npm ci
-      deploy-command:
-        type: string
-        default: npm exec --no -- wrangler deploy
     secrets:
       CLOUDFLARE_API_TOKEN:
         required: false
@@ -55,34 +26,43 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
+    outputs:
+      config: ${{ steps.config.outputs.config }}
+      provider: ${{ fromJSON(steps.config.outputs.config).docs.provider }}
     steps:
-      - name: Validate deployment selection
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.expected-sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - id: config
+        uses: $/actions/project-config
+        with:
+          config-file: ${{ inputs.config-file }}
+          expected-sha: ${{ inputs.expected-sha }}
+          task: deploy
+      - name: Require a release for stable deployment policy
         env:
-          PROVIDER: ${{ inputs.provider }}
-          POLICY: ${{ inputs.deployment-policy }}
+          POLICY: ${{ fromJSON(steps.config.outputs.config).docs.deployment-policy }}
           RELEASE_TAG: ${{ inputs.release-tag }}
-          TOOLCHAIN: ${{ inputs.toolchain }}
-        run: |
-          case "$PROVIDER" in pages|cloudflare) ;; *) exit 1 ;; esac
-          case "$POLICY" in always) ;; latest-stable) test -n "$RELEASE_TAG" ;; *) exit 1 ;; esac
-          if [ "$PROVIDER" = cloudflare ]; then
-            case "$TOOLCHAIN" in node|mise) ;; *) exit 1 ;; esac
-          fi
+        run: '[ "$POLICY" != latest-stable ] || test -n "$RELEASE_TAG"'
   pages:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
-      name: ${{ inputs.environment-name || 'github-pages' }}
+      name: ${{ fromJSON(needs.validate.outputs.config).docs.environment-name || 'github-pages' }}
       url: ${{ steps.deployment.outputs.page-url }}
     concurrency:
-      group: ${{ inputs.concurrency-group || format('pages-{0}', github.repository) }}
+      group: ${{ fromJSON(needs.validate.outputs.config).docs.concurrency-group || format('pages-{0}', github.repository) }}
       cancel-in-progress: false
     steps:
       - uses: actions/setup-node@v7
         with:
           node-version: "24"
       - id: policy
-        if: inputs.deployment-policy == 'latest-stable'
+        if: fromJSON(needs.validate.outputs.config).docs.deployment-policy == 'latest-stable'
         uses: $/actions/latest-release
         with:
           release-tag: ${{ inputs.release-tag }}
@@ -92,22 +72,22 @@ jobs:
         with:
           expected-sha: ${{ inputs.expected-sha }}
           artifact-name: ${{ inputs.artifact-name }}
-        if: inputs.deployment-policy == 'always' || steps.policy.outputs.eligible == 'true'
+        if: fromJSON(needs.validate.outputs.config).docs.deployment-policy == 'always' || steps.policy.outputs.eligible == 'true'
     needs: validate
-    if: inputs.provider == 'pages'
+    if: needs.validate.outputs.provider == 'pages'
   cloudflare:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment: ${{ inputs.environment-name || 'docs-production' }}
+    environment: ${{ fromJSON(needs.validate.outputs.config).docs.environment-name || 'docs-production' }}
     concurrency:
-      group: ${{ inputs.concurrency-group || format('cloudflare-{0}-{1}', github.repository, inputs.site-id) }}
+      group: ${{ fromJSON(needs.validate.outputs.config).docs.concurrency-group || format('cloudflare-{0}-{1}', github.repository, fromJSON(needs.validate.outputs.config).docs.site-id) }}
       cancel-in-progress: false
     steps:
       - uses: actions/setup-node@v7
         with:
-          node-version: ${{ inputs.toolchain == 'node' && inputs.node-version || '24' }}
+          node-version: ${{ fromJSON(needs.validate.outputs.config).setup.toolchain == 'node' && fromJSON(needs.validate.outputs.config).setup.node-version || '24' }}
       - id: policy
-        if: inputs.deployment-policy == 'latest-stable'
+        if: fromJSON(needs.validate.outputs.config).docs.deployment-policy == 'latest-stable'
         uses: $/actions/latest-release
         with:
           release-tag: ${{ inputs.release-tag }}
@@ -116,29 +96,26 @@ jobs:
         with:
           ref: ${{ inputs.expected-sha }}
           persist-credentials: false
-        if: inputs.deployment-policy == 'always' || steps.policy.outputs.eligible == 'true'
-      - uses: jdx/mise-action@v4.3.0
-        if: ${{ (inputs.deployment-policy == 'always' || steps.policy.outputs.eligible == 'true') && inputs.toolchain == 'mise' }}
+        if: fromJSON(needs.validate.outputs.config).docs.deployment-policy == 'always' || steps.policy.outputs.eligible == 'true'
+      - uses: $/actions/setup
         with:
-          cache: true
-      - name: Install deployment dependencies
-        working-directory: ${{ inputs.working-directory }}
-        env:
-          COMMAND: ${{ inputs.install-command }}
-        run: bash -e -o pipefail -c "$COMMAND"
-        if: inputs.deployment-policy == 'always' || steps.policy.outputs.eligible == 'true'
+          toolchain: ${{ fromJSON(needs.validate.outputs.config).setup.toolchain }}
+          node-version: ${{ fromJSON(needs.validate.outputs.config).setup.node-version }}
+          install-command: ${{ fromJSON(needs.validate.outputs.config).docs.install-command }}
+          working-directory: ${{ fromJSON(needs.validate.outputs.config).docs.working-directory }}
+        if: fromJSON(needs.validate.outputs.config).docs.deployment-policy == 'always' || steps.policy.outputs.eligible == 'true'
       - uses: $/actions/docs-cloudflare
         with:
           expected-sha: ${{ inputs.expected-sha }}
           artifact-name: ${{ inputs.artifact-name }}
-          site-directory: ${{ inputs.site-directory }}
-          working-directory: ${{ inputs.working-directory }}
-          deploy-command: ${{ inputs.deploy-command }}
+          site-directory: ${{ fromJSON(needs.validate.outputs.config).docs.site-directory }}
+          working-directory: ${{ fromJSON(needs.validate.outputs.config).docs.working-directory }}
+          deploy-command: ${{ fromJSON(needs.validate.outputs.config).docs.deploy-command }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        if: inputs.deployment-policy == 'always' || steps.policy.outputs.eligible == 'true'
+        if: fromJSON(needs.validate.outputs.config).docs.deployment-policy == 'always' || steps.policy.outputs.eligible == 'true'
     needs: validate
-    if: inputs.provider == 'cloudflare'
+    if: needs.validate.outputs.provider == 'cloudflare'
     permissions:
       contents: read

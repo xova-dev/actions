@@ -2,54 +2,16 @@ name: Rebuild and recover published documentation
 on:
   workflow_call:
     inputs:
+      config-file:
+        description: Tracked project JSON configuration at the selected source.
+        type: string
+        default: .github/xova.json
       release-tag:
         type: string
         required: true
       published-sha:
         type: string
         required: true
-      toolchain:
-        type: string
-        default: node
-      node-version:
-        type: string
-        default: "24"
-      install-command:
-        type: string
-        default: npm ci
-      docs-provider:
-        type: string
-        default: pages
-      docs-check-command:
-        type: string
-        default: ""
-      docs-build-command:
-        type: string
-        default: npm run docs:build
-      docs-site-directory:
-        type: string
-        default: ""
-      docs-working-directory:
-        type: string
-        default: .
-      docs-install-command:
-        type: string
-        default: ""
-      docs-environment-name:
-        type: string
-        default: ""
-      docs-concurrency-group:
-        type: string
-        default: ""
-      docs-site-id:
-        type: string
-        default: documentation
-      docs-deploy-command:
-        type: string
-        default: npm exec --no -- wrangler deploy
-      deployment-policy:
-        type: string
-        default: latest-stable
       artifact-name:
         type: string
         default: documentation
@@ -74,50 +36,45 @@ jobs:
     outputs:
       source-sha: ${{ steps.source.outputs.source-sha }}
     steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.published-sha }}
+          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version: "24"
+      - id: config
+        uses: $/actions/project-config
+        with:
+          config-file: ${{ inputs.config-file }}
+          expected-sha: ${{ inputs.published-sha }}
+          task: recovery
       - id: source
         uses: $/actions/release-source
         with:
           mode: recovery
           release-tag: ${{ inputs.release-tag }}
           expected-sha: ${{ inputs.published-sha }}
-          docs-provider: ${{ inputs.docs-provider }}
-          deployment-policy: ${{ inputs.deployment-policy }}
+          docs-provider: ${{ fromJSON(steps.config.outputs.config).docs.provider }}
+          deployment-policy: ${{ fromJSON(steps.config.outputs.config).docs.deployment-policy }}
   documentation:
-    uses: ./.github/workflows/docs-build.yml
+    uses: ./.github/workflows/check.yml
     permissions:
       contents: read
     with:
-      source-ref: ${{ needs.source.outputs.source-sha }}
-      check-command: ${{ inputs.docs-check-command }}
-      build-command: ${{ inputs.docs-build-command }}
-      site-directory: ${{ inputs.docs-site-directory }}
-      working-directory: ${{ inputs.docs-working-directory }}
+      kind: docs
+      config-file: ${{ inputs.config-file }}
+      source-sha: ${{ needs.source.outputs.source-sha }}
       artifact-name: ${{ inputs.artifact-name }}
       retention-days: ${{ inputs.retention-days }}
-      toolchain: ${{ inputs.toolchain }}
-      node-version: ${{ inputs.node-version }}
-      install-command: ${{ inputs.docs-install-command || inputs.install-command }}
     needs: source
   deploy:
     uses: ./.github/workflows/docs-deploy.yml
     with:
-      provider: ${{ inputs.docs-provider }}
+      config-file: ${{ inputs.config-file }}
       expected-sha: ${{ needs.source.outputs.source-sha }}
       release-tag: ${{ inputs.release-tag }}
-      deployment-policy: ${{ inputs.deployment-policy }}
       artifact-name: ${{ inputs.artifact-name }}
-      environment-name: ${{ inputs.docs-environment-name }}
-      concurrency-group: ${{ inputs.docs-concurrency-group }}
-      site-id: ${{ inputs.docs-site-id }}
-      site-directory: ${{ inputs.docs-site-directory }}
-      working-directory: ${{ inputs.docs-working-directory }}
-      toolchain: ${{ inputs.toolchain }}
-      node-version: ${{ inputs.node-version }}
-      install-command: ${{ inputs.docs-install-command || inputs.install-command }}
-      deploy-command: ${{ inputs.docs-deploy-command }}
     secrets:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

@@ -32,6 +32,12 @@ outputs:
   version:
     description: Published npm registry version, excluding SemVer build metadata.
     value: ${{ steps.publish.outputs.version }}
+  tarball-sha256:
+    description: SHA-256 of the exact verified and published tarball.
+    value: ${{ steps.publish.outputs.tarball-sha256 }}
+  publication-artifact:
+    description: Same-run artifact containing publication-result.json for npm recovery evidence.
+    value: ${{ steps.publish.outputs.publication-artifact }}
 runs:
   using: composite
   steps:
@@ -68,3 +74,9 @@ runs:
         npm exec --no -- release-it --ci --no-increment --verbose \
           --configDir "$XOVA_ACTION_PATH/../../config" \
           --config "$XOVA_ACTION_PATH/../../config/npm-publish.mjs"
+    - name: Save npm publication result
+      uses: actions/upload-artifact@v6
+      with:
+        name: ${{ steps.publish.outputs.publication-artifact }}
+        path: ${{ steps.publish.outputs.publication-result-path }}
+        if-no-files-found: error

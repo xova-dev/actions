@@ -26,17 +26,4 @@ jobs:
     with:
       release-tag: ${{ github.event.release.tag_name || inputs.release-tag }}
       expected-sha: ${{ needs.checks.outputs.source-sha }}
-      package-manager: pnpm
-      verify-command: pnpm release:check
-      package-verify-command: pnpm test:pack --profile daily
-      docs-provider: pages
-      docs-check-command: pnpm docs:typecheck
-      docs-build-command: pnpm docs:build
-      docs-site-directory: docs/.vitepress/dist
-      docs-environment-name: github-pages
-      docs-concurrency-group: github-pages
-      deployment-policy: latest-stable
-      toolchain: mise
-      install-command: pnpm install --frozen-lockfile
-      environment-name: npm-publish
       deploy-docs: ${{ github.event_name == 'release' && !github.event.release.prerelease }}

@@ -1,0 +1,19 @@
+name: Validate checked source
+description: Confirm the exact HEAD and clean tracked files/index without reading project configuration.
+inputs:
+  expected-sha:
+    description: Exact checked-out source commit.
+    required: true
+outputs:
+  source-sha:
+    description: Exact source after successful validation.
+    value: ${{ steps.source.outputs.source-sha }}
+runs:
+  using: composite
+  steps:
+    - id: source
+      shell: bash
+      env:
+        XOVA_ACTION_PATH: ${{ github.action_path }}
+        EXPECTED_SHA: ${{ inputs.expected-sha }}
+      run: node "$XOVA_ACTION_PATH/../../lib/cli.mjs" source

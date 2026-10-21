@@ -1,35 +1,22 @@
 name: Build and deploy documentation without a package release
 on:
   push:
-    branches: [main]
+    branches:
+      - main
 permissions:
   contents: read
 jobs:
   build:
-    runs-on: ubuntu-latest
-    outputs:
-      source-sha: ${{ steps.docs.outputs.source-sha }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-      - id: docs
-        uses: xova-dev/actions/actions/docs-build@v1
-        with:
-          expected-sha: ${{ github.sha }}
-          check-command: node --check build.mjs
-          build-command: node build.mjs
-          site-directory: _site
+    uses: xova-dev/actions/.github/workflows/check.yml@v1
+    with:
+      kind: docs
+      source-sha: ${{ github.sha }}
   deploy:
     needs: build
-    uses: xova-dev/actions/.github/workflows/docs-pages.yml@v1
+    uses: xova-dev/actions/.github/workflows/docs-deploy.yml@v1
     permissions:
       contents: read
       pages: write
       id-token: write
     with:
       expected-sha: ${{ needs.build.outputs.source-sha }}
-      environment-name: documentation-live

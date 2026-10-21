@@ -1,8 +1,8 @@
-# Adoption and migration
+# Adoption
 
 English | [简体中文](adoption.zh-CN.md)
 
-The examples are proposed configurations, not completed migrations. Choose a
+The examples describe local configurations; hosted acceptance is separate. Choose a
 composite for caller-owned jobs or a reusable workflow for the common Ubuntu setup.
 Read the [interface contract](architecture.md) before adapting an example.
 
@@ -24,7 +24,7 @@ revision automatically and require GitHub.com.
 Any repository with permission to access the toolkit can reference it; there is no
 Matrix/RSP or organization-name gate. Under a job's steps, use
 `xova-dev/actions/actions/npm-publish@<verified-sha>`; at job level, use
-`xova-dev/actions/.github/workflows/npm-publish.yml@<verified-sha>`.
+`xova-dev/actions/.github/workflows/release.yml@<verified-sha>`.
 These are reference shapes, not complete workflows: supply required inputs and
 permissions as shown in the independent examples. Public sharing is simplest;
 private sharing requires the source repository's Actions access settings and the
@@ -38,60 +38,17 @@ without Docker.
 
 ## Configure a consumer
 
-Use [release.yml and docs-recover.yml](orchestration.md) for standard flows. Keep event triggers, project commands, product matrices and selected environments in the consumer. Do not copy generic composite runners, source/recovery guards or upstream behavior tests into each project.
+Start with [project configuration and runtime inputs](project-workflows.md); that guide owns settings, stages and permissions. Standard workflows have no command/setup overrides; custom jobs use composites. Consumers keep required product checks on the exact SHA.
 
-1. Keep CI and project tools/checks in the consumer. For the recipes, defaults are
-   Node 24 and npm ci. Select toolchain=mise and explicit pnpm commands for a mise
-   project; node-version only affects node mode. For other setup, use composites.
-   npm-publish requires release-it 21.1.1 in the consumer's locked development
-   dependencies; the native CLI and npm publisher are used directly.
-2. With a composite, check out the intended source and install tools/dependencies
-   before invoking it. Set permissions, environment and concurrency on the job.
-   Each site's artifact-name must be unique within a run. Use stable, distinct
-   Cloudflare site-id values for independent targets; Pages has one repository site.
-3. Audit lifecycle hooks. Explicit verify-command must generate, check and build
-   the package. Set package-manager=pnpm for pnpm projects; mise setup alone does
-   not select a packer. The default npm packer rejects catalog:/workspace: dependencies.
-   Packing/publication disable lifecycle scripts. Optional package-verify-command
-   checks the absolute TARBALL file; adapt existing tests to consume it rather than
-   pack again. Necessary release materials are allowed; checks must not mutate
-   tracked candidate files, HEAD, the index or the packed bytes. Tracked sources
-   and index must already be clean before checks begin. Supply tar for reading
-   the packed manifest; the Ubuntu recipe already includes it.
-4. Configure npm Trusted Publishing per package using the consumer owner/repository,
-   caller entry filename (for example publish.yml), and the actual job environment.
-   The recipe defaults to npm-publish; npm-package uses public-npm and subpackage
-   uses widget-npm. npm authenticates the caller workflow, not the toolkit filename.
-   Use npm 11.5.1+ and a release-it-supported Node version: ^22.22.2, ^24.15.0 or
-   >=26.0.0 (this toolkit's reference setup is Node 24).
-   Enable direct npm publish in allowed actions. This interface does not use npm
-   stage publish or long-lived npm tokens. Public-repository provenance is required.
-   package.json must also declare a public repository matching the consumer's
-   GitHub owner/name, including case. npm-publish checks this before verification
-   and again before packing, then validates the actual archived manifest. See [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers/)
-   and [provenance requirements](https://docs.npmjs.com/generating-provenance-statements/).
-5. Configure Pages or Cloudflare independently. Recipes expose environment-name;
-   direct actions use the caller job environment. For Cloudflare, provide locked
-   Wrangler/configuration and explicit CLOUDFLARE_API_TOKEN/CLOUDFLARE_ACCOUNT_ID.
-   The adapter restores the built site, then runs the supplied deployment command.
-6. Choose deployment policy explicitly. A docs-only project may deploy main with
-   no npm or GitHub Release. For publication-coupled sites, require successful npm
-   and pass its source-sha as expected-sha. Select deployment-policy=latest-stable in
-   the shared flow; the provider job evaluates it after environment/concurrency gates.
-   Only custom composite callers need to wire latest-release and eligible=true themselves.
-   Errors must fail rather than masquerade as an ineligible release.
-7. On first use, check workflow results, npm version/dist-tag and the site separately.
-   Local checks do not prove OIDC or provider acceptance.
-
-Artifacts are retrieved only from the same run and carry a versioned schema,
-repository, source SHA and content digest. Default retention is seven days and is
-configurable at build time. Recovery starts a new run, rebuilds from the confirmed
-source and deploys that run's new artifact. Do not relabel an old artifact.
+1. Install the consumer's locked release-it 21.1.1, with Node ^22.22.2, ^24.15.0 or >=26.0.0, and npm 11.5.1+. Node 24 is the reference setup. Supply Bash/tar; select pnpm explicitly for catalog/workspace expansion. Lifecycle scripts are disabled during packing/publication; tests consume TARBALL. See the [candidate contract](architecture.md#public-actions).
+2. Configure npm Trusted Publishing for the consumer owner/repository, caller workflow filename (for example publish.yml), and npm.environment-name (default npm-publish; examples public-npm/widget-npm). npm authenticates the caller, not the toolkit filename. Allow direct publish, not stage publish or long-lived tokens. Public provenance requires matching public package.json repository metadata, including case; local origin is insufficient. See [Trusted Publishing](https://docs.npmjs.com/trusted-publishers/) and [provenance](https://docs.npmjs.com/generating-provenance-statements/).
+3. Configure Pages settings and production environments separately. Cloudflare needs the consumer's locked Wrangler/configuration and explicit CLOUDFLARE_API_TOKEN/CLOUDFLARE_ACCOUNT_ID. Shared workflows read environments/locks from configuration; direct composite jobs set their own gates. Keep credentials separate from checks.
+4. On first use, verify the hosted run, registry version/dist-tag and deployed site separately. Local tests do not establish OIDC or provider acceptance. Recovery rebuilds from confirmed source in a new run; artifacts are not relabelled or fetched across runs.
 
 ## Independent examples
 
 npm-package and subpackage include package-lock.json and no mise/pnpm dependency.
-Copy each example's source tree to a consumer root and place its workflow under
+Copy each example's source tree, including hidden .github configuration, to a consumer root and place its workflow under
 .github/workflows/. Their package names and repository example/project are
 illustrative: use a package you own, replace repository.url with the consumer's
 actual GitHub repository, and configure Trusted Publishing for that package.
@@ -111,7 +68,9 @@ consumer application or real Cloudflare deployment.
 
 ## Matrix
 
-The example uses one consumer-owned checks.yml for CI and publication. It preserves six OS/Node compatibility jobs and three Electron jobs on the exact native candidate. The publish entry waits for that product workflow, then calls release.yml; docs-recover is one shared recovery call. Keep the existing github-pages environment and concurrency group through inputs.
+The updated blueprint includes xova.json; place it at .github/xova.json and the YAML files under .github/workflows in the consumer. CI/docs checks, publication and recovery read that one configuration. Product matrices stay in checks.yml; the publisher builds after those exact-source checks rather than repeating lint/types/examples.
+
+The example uses one consumer-owned checks.yml for CI and publication. It preserves six OS/Node compatibility jobs and three Electron jobs on the exact native candidate. The publish entry waits for that product workflow, then calls release.yml; docs-recover is one shared recovery call. Keep the existing github-pages environment and concurrency group in configuration. Documentation checks, release and recovery use the same check(kind=docs) implementation.
 
 Product package tests consume TARBALL for the final published file. Their fallback local packing remains available. Generic source, release-it, tarball and deployment regressions live in this toolkit; Matrix only tests its product matrix and workflow wiring.
 
@@ -119,7 +78,7 @@ Uncommitted orchestration cannot be referenced through an older verified toolkit
 
 ## RSP
 
-The example uses `RSP_INSTALL_ALLOW_NETWORK=1 pnpm release:check` and installs the
+RSP remains a blueprint; this change does not migrate its repository. Copy examples/rsp/xova.json to .github/xova.json. The example uses `RSP_INSTALL_ALLOW_NETWORK=1 pnpm release:check` and installs the
 locked uv environment for offline Skill schemas. The network opt-in lets a fresh
 runner populate the distinct .cache/rsp-package-install npm cache; pnpm/uv installs
 do not populate it. RSP's default offline behavior elsewhere stays unchanged.
@@ -130,9 +89,7 @@ uses the consumer's locked Wrangler/configuration and the already-built site.
 
 ## Organization .github
 
-Keep organization defaults and thin workflow templates there. An old shared
-npm-publish workflow may become a compatibility caller after its inputs, omitted
-checks and migration are reviewed. Do not silently inherit weaker validation.
+Keep organization defaults and thin workflow templates there. Templates call the current standard workflows and keep commands/settings in project JSON; do not add forwarding compatibility workflows.
 
 ## Publication guarantees and limits
 

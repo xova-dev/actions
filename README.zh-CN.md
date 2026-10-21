@@ -6,7 +6,11 @@
 
 当前尚未发布稳定接口，所有 `@v1` 都是占位引用。接口发布并验证后，应固定到已核实的完整提交 SHA。Matrix 已有本地接入草稿，但尚无消费项目完成托管环境验收，真实 npm OIDC 与部署仍未验收。
 
-标准发布与文档恢复优先使用[共享编排](docs/orchestration.zh-CN.md)。消费方保留产品检查和薄事件入口，通用来源校验、部署顺序及恢复流程留在本仓库。
+优先使用[项目工作流](docs/project-workflows.zh-CN.md)：一份声明式配置覆盖代码检查、文档检查、发布与恢复。产品矩阵和事件策略留在消费方，setup 和通用校验留在本仓库；自定义任务直接组合[操作 actions](docs/architecture.zh-CN.md#公共-actions)。
+
+必填项按任务判断，未使用的命令可以省略，未知字段和无效值仍会报错。每个检查任务读取一次配置，前后使用独立来源门禁。
+
+npm 成功后保存[发布结果与恢复摘要](docs/publication-results.zh-CN.md)。CI [验证可复用检查流程的两条路径](docs/verification.zh-CN.md)，覆盖真实代码断言、工作流输出和下载后的文档产物，不发布或部署。
 
 ## 选择入口
 
@@ -64,5 +68,6 @@ pnpm check 先重新生成分发文件，再依次运行测试和 lint，任一�
 semver 7.8.5 预打包在 dist/semver.mjs，许可证位于 dist/semver.LICENSE；两个文件都保留在 Git 中，消费方无需安装工具库依赖。.gitattributes 只将 dist/*.mjs 标记为 GitHub diff 中的生成代码，许可证保持可见。升级 semver 或修改打包入口后运行 pnpm check；仅需重新生成时使用 mise exec -- pnpm build。CI 用 pnpm build:check 只比对生成字节、不改写文件，然后分别运行测试和 lint，不自动提交或推送生成文件。
 
 esbuild 0.28.2 仅用于维护构建；pnpm-workspace.yaml 显式禁用其安装脚本，使用随依赖分发的平台二进制。
+项目配置定义与任务规则集中在 Valibot 源码 config/project.mjs。pnpm build 通过官方转换器生成 config/project.schema.json，并将校验器打包到 dist/project-config.mjs，保留可见的 dist/valibot.LICENSE；修改源码定义，不手改生成文件。
 
 Lint 入口使用 actionlint 检查工作流与样例，并通过 action-validator 的元数据 schema 递归检查 actions/ 下的 action.yml/action.yaml。Schema 检查不执行 shell 命令，也不完整检查 composite 表达式；契约与行为测试覆盖选定执行路径。Actionlint 的精确排除项仅处理旧版工具尚未支持的 GitHub.com 同提交 `$/actions/...` 语法，引用与输入契约由测试检查。详见 [GitHub 工作流语法](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsuses)。

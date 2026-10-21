@@ -36,12 +36,16 @@ export function fixture(t, version = '0.1.0') {
 }
 
 export function runStep(run, cwd, env = {}) {
+  // Fixture publications must never write success summaries into the hosting CI job.
   return spawnSync('/bin/bash', ['-e', '-o', 'pipefail', '-c', run], {
     cwd, encoding: 'utf8', timeout: 30000,
     env: {
       ...process.env, npm_config_registry: 'http://127.0.0.1:9', npm_config_userconfig: '/dev/null',
+      // Workflow commands run independently of this process's Node test runner.
+      NODE_TEST_CONTEXT: undefined,
       XOVA_ACTION_PATH: join(root, 'actions/npm-publish'), GITHUB_REPOSITORY: 'fixture/project',
-      GITHUB_OUTPUT: join(cwd, 'step-output'), RUNNER_TEMP: join(cwd, 'runner'), ...env,
+      GITHUB_OUTPUT: join(cwd, 'step-output'), GITHUB_STEP_SUMMARY: join(cwd, 'step-summary'),
+      RUNNER_TEMP: join(cwd, 'runner'), ...env,
     },
   })
 }

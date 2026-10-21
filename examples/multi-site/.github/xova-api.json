@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "docs": {
+    "provider": "cloudflare",
+    "check-command": "npm run docs:check --workspace=api",
+    "build-command": "npm run docs:build --workspace=api",
+    "site-directory": "sites/api/dist",
+    "site-id": "api",
+    "environment-name": "docs-api",
+    "deploy-command": "npm exec --no -- wrangler deploy --config sites/api/wrangler.jsonc",
+    "deployment-policy": "always"
+  }
+}

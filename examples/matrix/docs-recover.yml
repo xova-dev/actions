@@ -22,12 +22,3 @@ jobs:
     with:
       release-tag: ${{ inputs.release-tag }}
       published-sha: ${{ inputs.published-sha }}
-      docs-provider: pages
-      docs-check-command: pnpm docs:typecheck
-      docs-build-command: pnpm docs:build
-      docs-site-directory: docs/.vitepress/dist
-      docs-environment-name: github-pages
-      docs-concurrency-group: github-pages
-      deployment-policy: latest-stable
-      toolchain: mise
-      install-command: pnpm install --frozen-lockfile

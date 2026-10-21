@@ -35,7 +35,7 @@ runs:
       env:
         XOVA_ACTION_PATH: ${{ github.action_path }}
         EXPECTED_SHA: ${{ inputs.expected-sha }}
-      run: node "$XOVA_ACTION_PATH/../../lib/cli.mjs" docs-source
+      run: node "$XOVA_ACTION_PATH/../../lib/cli.mjs" source
     - name: Check and build documentation
       shell: bash
       working-directory: ${{ inputs.working-directory }}

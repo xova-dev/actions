@@ -46,7 +46,7 @@ pnpm exec release-it 0.4.0 --ci
 
 ## 发布已验证候选
 
-发布要求消费方锁定 release-it 21.1.1，并提供支持 OIDC 的 npm 11.5.1+。Action 只有两个步骤：候选预检，以及加载隔离[发布预设](../config/npm-publish.mjs)的原生 release-it CLI。Git、版本更新、GitHub/GitLab Release 和消费方 release-it hooks/plugins 均不参与，由内置 npm 插件完成发布并报告失败。
+发布要求消费方锁定 release-it 21.1.1，并提供支持 OIDC 的 npm 11.5.1+。Action 先执行候选预检，再运行加载隔离[发布预设](../config/npm-publish.mjs)的原生 release-it CLI，随后上传成功的[发布结果](publication-results.zh-CN.md)。Git、版本更新、GitHub/GitLab Release 和消费方 release-it hooks/plugins 均不参与，由内置 npm 插件完成发布并报告失败。
 
 简短的[候选插件](../lib/npm-release.mjs)只补充工具库不变量：执行 verify-command 前拒绝脏的受跟踪源码或暂存区、使用所选原生工具打包、通过 tar 验证归档内的 manifest、按需通过 package-verify-command 检查文件，然后在内置发布器执行前复核源码及 tarball SHA-256。发布成功后才写入输出，不再维护独立发布引擎或 npm 认证实现。
 

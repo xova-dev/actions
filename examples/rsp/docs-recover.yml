@@ -19,14 +19,6 @@ jobs:
       contents: read
     with:
       release-tag: ${{ inputs.release-tag }}
-      toolchain: mise
-      install-command: pnpm install --frozen-lockfile
-      docs-provider: cloudflare
-      docs-check-command: pnpm docs:check
-      docs-build-command: pnpm docs:build
-      docs-site-directory: docs/.vitepress/dist
-      docs-deploy-command: pnpm exec wrangler deploy
-      docs-environment-name: docs-production
       published-sha: ${{ inputs.published-sha }}
     secrets:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

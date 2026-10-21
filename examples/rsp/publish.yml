@@ -19,17 +19,6 @@ jobs:
       id-token: write
     with:
       release-tag: ${{ github.event.release.tag_name || inputs.release-tag }}
-      toolchain: mise
-      install-command: pnpm install --frozen-lockfile && uv sync --project tests/skills --frozen
-      docs-provider: cloudflare
-      docs-check-command: pnpm docs:check
-      docs-build-command: pnpm docs:build
-      docs-site-directory: docs/.vitepress/dist
-      docs-deploy-command: pnpm exec wrangler deploy
-      docs-environment-name: docs-production
-      package-manager: pnpm
-      verify-command: RSP_INSTALL_ALLOW_NETWORK=1 pnpm release:check
-      docs-install-command: pnpm install --frozen-lockfile
     secrets:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

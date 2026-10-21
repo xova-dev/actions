@@ -43,9 +43,11 @@ for (const [directory, packageDirectory, tag] of [
     const sha = project.commit('feat: independent consumer')
     project.git('tag', tag)
     const document = example(directory, 'publish.yml')
-    const call = directory === 'npm-package' ? document.jobs.publish : document.jobs.publish.steps.at(-1)
-    const contract = workflow('npm-publish').on.workflow_call.inputs
-    const install = directory === 'npm-package' ? contract['install-command'].default : document.jobs.publish.steps.find(item => item.run).run
+    const resolved = directory === 'npm-package' ? composite('project-config', project.cwd, { task: 'release', 'expected-sha': sha }) : null
+    if (resolved) assert.equal(resolved.status, 0, resolved.logs)
+    const config = resolved && JSON.parse(resolved.outputs.config)
+    const call = directory === 'npm-package' ? { with: config.npm } : document.jobs.publish.steps.at(-1)
+    const install = config ? config.setup['install-command'] : document.jobs.publish.steps.find(item => item.run).run
     const env = { npm_config_cache: join(project.cwd, '.cache'), npm_config_audit: 'false', npm_config_fund: 'false', npm_config_userconfig: '/dev/null' }
     // Exercise source installation offline; CI separately installs all locked dev tools.
     const installed = runStep(install + ' --omit=dev', join(project.cwd, packageDirectory), env)
@@ -78,7 +80,14 @@ test('a docs-only consumer builds and reaches Pages without package.json, npm pu
   cpSync(join(root, 'examples/docs-only'), project.cwd, { recursive: true })
   const sha = project.commit('docs: independent documentation')
   const document = example('docs-only', 'docs.yml')
-  const supplied = { ...document.jobs.build.steps.at(-1).with, 'expected-sha': sha }
+  const resolved = composite('project-config', project.cwd, { task: 'docs', 'expected-sha': sha })
+  assert.equal(resolved.status, 0, resolved.logs)
+  const docs = JSON.parse(resolved.outputs.config).docs
+  assert.equal(docs['deployment-policy'], 'always')
+  assert.equal(docs['environment-name'], 'documentation-live')
+  const supplied = { ...docs, 'expected-sha': sha }
+  assert.equal(document.jobs.build.uses, 'xova-dev/actions/.github/workflows/check.yml@v1')
+  assert.equal(document.jobs.deploy.uses, 'xova-dev/actions/.github/workflows/docs-deploy.yml@v1')
   let artifact
   const build = composite('docs-build', project.cwd, supplied, {}, (uses, inputs) => {
     assert.match(uses, /^actions\/upload-artifact@/)
@@ -113,23 +122,31 @@ test('a docs-only consumer builds and reaches Pages without package.json, npm pu
 
 test('two deployment targets restore their own artifacts and run caller deployment commands', t => {
   const project = fixture(t)
-  const sha = project.git('rev-parse', 'HEAD')
+  cpSync(join(root, 'examples/multi-site/.github'), join(project.cwd, '.github'), { recursive: true })
+  const sha = project.commit('docs: multiple deployment configurations')
   const document = example('multi-site', 'docs.yml')
   const sites = document.jobs.deploy.strategy.matrix.site
   const groups = new Set()
   const downloads = new Set()
   for (const site of sites) {
+    const selected = composite('project-config', project.cwd, { task: 'docs', 'expected-sha': sha, 'config-file': '.github/xova-' + site + '.json' })
+    assert.equal(selected.status, 0, selected.logs)
+    const { docs } = JSON.parse(selected.outputs.config)
+    assert.equal(docs['deployment-policy'], 'always')
+    assert.equal(docs['site-id'], site)
+    assert.equal(docs['environment-name'], 'docs-' + site)
     const source = 'built/' + site
     project.write(source + '/index.html', site)
     let artifact
     const build = composite('docs-build', project.cwd, {
       'expected-sha': sha, 'check-command': 'test -f ' + source + '/index.html',
-      'build-command': 'true', 'site-directory': source, 'artifact-name': 'docs-' + site,
+      'build-command': 'mkdir -p ' + docs['site-directory'] + ' && cp ' + source + '/index.html ' + docs['site-directory'] + '/index.html',
+      'site-directory': docs['site-directory'], 'artifact-name': 'docs-' + site,
     }, {}, (uses, inputs) => { artifact = inputs.path; return {} })
     assert.equal(build.status, 0, build.logs)
     const deploy = composite('docs-cloudflare', project.cwd, {
-      'expected-sha': sha, 'artifact-name': 'docs-' + site, 'site-directory': 'sites/' + site + '/dist',
-      'deploy-command': 'cp sites/' + site + '/dist/index.html deployed-' + site,
+      'expected-sha': sha, 'artifact-name': 'docs-' + site, 'site-directory': docs['site-directory'],
+      'deploy-command': 'cp ' + docs['site-directory'] + '/index.html deployed-' + site,
     }, {}, (uses, inputs) => {
       assert.equal(inputs.name, 'docs-' + site)
       downloads.add(inputs.path)
@@ -138,7 +155,7 @@ test('two deployment targets restore their own artifacts and run caller deployme
     assert.equal(deploy.status, 0, deploy.logs)
     assert.equal(readFileSync(join(project.cwd, 'deployed-' + site), 'utf8'), site)
     const group = workflow('docs-deploy').jobs.cloudflare.concurrency.group
-      .replaceAll('github.repository', 'fixture/project').replaceAll('inputs.site-id', site)
+      .replaceAll('github.repository', 'fixture/project').replaceAll('fromJSON(needs.validate.outputs.config).docs.site-id', site)
     groups.add(group)
   }
   assert.equal(groups.size, 2)

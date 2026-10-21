@@ -62,8 +62,8 @@ Multi-package version/dependency planning remains outside the toolkit contract.
 ## Publish the verified candidate
 
 Publication requires the consumer's locked release-it 21.1.1 installation and npm
-11.5.1+ for OIDC. The action performs two steps: candidate preflight, then the
-native release-it CLI with the isolated [publication preset](../config/npm-publish.mjs).
+11.5.1+ for OIDC. The action performs candidate preflight, then the
+native release-it CLI with the isolated [publication preset](../config/npm-publish.mjs), followed by upload of the successful [publication result](publication-results.md).
 Git, version bumps, GitHub/GitLab Releases and consumer release-it hooks/plugins
 are excluded. The built-in npm plugin handles publication and reports failure.
 

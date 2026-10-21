@@ -1,33 +1,33 @@
 name: Two Cloudflare documentation targets
 on:
-  workflow_dispatch:
+  workflow_dispatch: null
 permissions:
   contents: read
 jobs:
   build:
     strategy:
       matrix:
-        site: [handbook, api]
-    uses: xova-dev/actions/.github/workflows/docs-build.yml@v1
+        site:
+          - handbook
+          - api
+    uses: xova-dev/actions/.github/workflows/check.yml@v1
     with:
-      source-ref: ${{ github.sha }}
-      check-command: npm run docs:check --workspace=${{ matrix.site }}
-      build-command: npm run docs:build --workspace=${{ matrix.site }}
-      site-directory: sites/${{ matrix.site }}/dist
-      artifact-name: docs-${{ matrix.site }}
+      config-file: ${{ format('.github/xova-{0}.json', matrix.site) }}
+      source-sha: ${{ github.sha }}
+      artifact-name: ${{ format('docs-{0}', matrix.site) }}
+      kind: docs
   deploy:
     needs: build
     strategy:
       matrix:
-        site: [handbook, api]
-    uses: xova-dev/actions/.github/workflows/docs-cloudflare.yml@v1
+        site:
+          - handbook
+          - api
+    uses: xova-dev/actions/.github/workflows/docs-deploy.yml@v1
     with:
+      config-file: ${{ format('.github/xova-{0}.json', matrix.site) }}
       expected-sha: ${{ github.sha }}
-      artifact-name: docs-${{ matrix.site }}
-      site-id: ${{ matrix.site }}
-      environment-name: docs-${{ matrix.site }}
-      site-directory: sites/${{ matrix.site }}/dist
-      deploy-command: npm exec --no -- wrangler deploy --config sites/${{ matrix.site }}/wrangler.jsonc
+      artifact-name: ${{ format('docs-{0}', matrix.site) }}
     secrets:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "setup": {
+    "install-command": ":"
+  },
+  "docs": {
+    "provider": "pages",
+    "check-command": "node --check build.mjs",
+    "build-command": "node build.mjs",
+    "site-directory": "_site",
+    "environment-name": "documentation-live",
+    "deployment-policy": "always"
+  }
+}

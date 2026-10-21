@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "npm": {
+    "verify-command": "npm test && npm run build",
+    "package-verify-command": "node check-package.mjs",
+    "environment-name": "public-npm"
+  }
+}

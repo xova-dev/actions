@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "setup": {
+    "install-command": ":"
+  },
+  "code": {
+    "check-command": "node --test examples/npm-package/check.test.mjs"
+  },
+  "docs": {
+    "working-directory": "examples/docs-only",
+    "check-command": "node --check build.mjs",
+    "build-command": "node build.mjs",
+    "site-directory": "_site"
+  }
+}

@@ -4,6 +4,8 @@ English | [简体中文](architecture.zh-CN.md)
 
 ## Scope and ownership
 
+[Project workflows](project-workflows.md) provide one configuration contract and shared setup for code/docs checks, release and recovery. Valibot owns definitions/defaults/task rules in config/project.mjs; the JSON Schema and runtime bundle are generated from it. Consumers install no validator dependencies.
+
 Supported capabilities are public npm Trusted Publishing and static documentation
 with Pages/Cloudflare adapters. A single package in a subdirectory with an explicit
 tag prefix is supported. Monorepo version orchestration, dependency bumping,
@@ -26,18 +28,23 @@ configure maintainers only.
 
 ## Public actions
 
+Project configuration uses Valibot 1.5.0 in config/project.mjs. The official @valibot/to-json-schema 1.8.0 converter generates config/project.schema.json; esbuild bundles the runtime in dist/project-config.mjs with its visible dist/valibot.LICENSE. Build/check coverage includes schema source changes, stale generated JSON, missing/changed code and licenses, and unsupported conversion failures.
+
 Each action.yml owns the authoritative input/output descriptions.
 
 | Action | Contract |
 | --- | --- |
-| [npm-publish](../actions/npm-publish/action.yml) | Requires release-tag and verify-command; optional expected-sha, tag-prefix (v), working-directory (.), npm-tag (auto), package-manager (npm) and package-verify-command. Returns source-sha and version after publication. |
+| [setup](../actions/setup/action.yml) | Explicit toolchain selection and locked dependency installation, shared by check/build/publish/Cloudflare jobs. |
+| [project-config](../actions/project-config/action.yml) | Validate tracked JSON from a clean exact source, normalize defaults, and optionally classify ordinary CI changes. |
+| [check-source](../actions/check-source/action.yml) | Requires expected-sha; verifies HEAD and clean tracked files/index without reading configuration, then returns source-sha. |
+| [npm-publish](../actions/npm-publish/action.yml) | Requires release-tag and verify-command; optional expected-sha, tag-prefix (v), working-directory (.), npm-tag (auto), package-manager (npm) and package-verify-command. Returns source-sha/version, tarball-sha256 and publication-artifact after publication. |
 | [docs-build](../actions/docs-build/action.yml) | Requires expected-sha, check-command, build-command, site-directory; optional working-directory (.), artifact-name (documentation), retention-days (7). Uploads an artifact and returns source-sha. |
 | [docs-pages](../actions/docs-pages/action.yml) | Requires expected-sha; optional artifact-name (documentation). Validates then deploys, returning page-url. Does not need checkout or npm dependencies. |
 | [docs-cloudflare](../actions/docs-cloudflare/action.yml) | Requires expected-sha, site-directory, deploy-command; optional artifact-name and working-directory. Caller checks out that commit, installs locked deployment tools and provides credentials in the step environment. |
 | [release-source](../actions/release-source/action.yml) | Early native tag/SHA and provider/policy validation; recovery requires a confirmed expected-sha. Does not replace final package verification. |
 | [latest-release](../actions/latest-release/action.yml) | Optional policy requiring release-tag and expected-sha. Returns eligible=true for the exact latest stable GitHub Release, false for other releases; API errors/source mismatches fail. |
 
-Composites install no project tools/dependencies. Supply Node 24 and Bash; npm
+Operation composites install no project tools/dependencies; setup is the explicit installation action. Supply Node 24 and Bash; npm
 publication also needs tar, locked release-it 21.1.1, npm 11.5.1+, a public repository
 and Trusted Publishing. release-it requires Node ^22.22.2, ^24.15.0 or >=26.0.0.
 latest-release also needs gh. Pages jobs grant pages:write and id-token:write;
@@ -64,11 +71,11 @@ Optional package-verify-command receives the absolute TARBALL path for checks of
 that file. Before publication, source/index/HEAD and the original tarball SHA-256
 are checked again. The exact tarball is published without repacking. Without the
 optional command, package identity/consistency does not imply product compatibility.
-The publication composite has two steps: candidate preflight, then native
+The publication composite runs candidate preflight, then native
 release-it with --no-increment and the toolkit's isolated publication configDir.
 The candidate plugin adds package checks; release-it's built-in npm plugin publishes
 the file. Consumer release-it hooks/plugins, Git delivery and version changes are
-excluded from this CI entry. Successful publication outputs are written afterward.
+excluded from this CI entry. After npm succeeds, it writes publication-result.json and a job summary, then uploads only that result as an artifact. Public outputs include source-sha/version, tarball-sha256 and publication-artifact; see the [result contract](publication-results.md).
 Preflight and subsequent candidate checks read npm's effective dry-run configuration
 and require false. A dry run inherited from environment or .npmrc must not produce
 successful publication outputs. The action rejects it rather than overriding it
@@ -97,49 +104,15 @@ create a separate npm registry version.
 
 ## Reusable workflows and policy
 
-The high-level release, docs-recover and docs-deploy workflows own source gates, dependency ordering and provider selection. See the [orchestration contract](orchestration.md). npm-publish and docs-build invoke their matching composites; docs-pages and docs-cloudflare are compatibility entries into docs-deploy, which owns both provider jobs. npm-publish defaults to npm ci and
-Node 24. docs-build defaults to npm ci and npm run docs:build, requiring explicit
-site-directory. Select toolchain=mise and explicit pnpm commands when needed;
-node-version applies to node mode. Environments are configurable. Cloudflare
-site-id must identify the same deployment target across runs; distinct targets
-need distinct identifiers. Pages serializes repository-wide for one Pages site.
+[Project workflows](project-workflows.md) are the single reference for configuration, stage ordering, permissions, policy. Four standard workflows call operation composites; custom jobs call those composites directly. check(kind=docs) is the sole reusable documentation check/build path for standalone checks, release and recovery. npm publication is isolated in release; recovery cannot reach it.
 
-Recipes use GitHub.com's `$/actions/...` to resolve actions from the reusable
-workflow's own repository and commit, including SHA-pinned calls. GHES is outside
-this recipe contract. Actionlint 1.7.12 predates that syntax: only its missing-ref
-diagnostic for these paths is excluded, while tests validate targets and inputs.
-Other lint diagnostics remain enabled.
+Internal same-commit $/actions/... and nested workflow references follow the pinned toolkit repository/commit on GitHub.com; GHES is outside this workflow contract. actionlint 1.7.12 predates that syntax: only its specific missing-ref diagnostic is excluded, while tests validate targets and inputs. Other diagnostics remain enabled.
 
-Toolkit JavaScript imports the checked-in dist/semver.mjs bundle, including in
-downloaded action checkouts without node_modules. scripts/build.mjs generates it
-from the locked dependency and copies its license. Both distribution files stay
-in Git. .gitattributes marks dist/*.mjs as generated while leaving licenses visible.
-For local development, pnpm check regenerates the files, then runs tests and lint.
-pnpm build:check compares the generated bytes without writing; CI runs it before
-tests and lint and never automatically commits or pushes. Regression fixtures
-exercise missing and modified bundle/license files and ensure check mode never
-rewrites them. esbuild is a development
-dependency only. Consumers continue to provide their locked release-it installation.
+Tracked-source identity helpers live in lib/git.mjs and are reused by configuration, check-source and documentation. check.yml reads JSON once per job and uses separate source guards before code commands and after either path; task-specific required settings are defined in [project workflows](project-workflows.md). Publication retains its extra native event/tag/package checks and source/digest checks around native release-it. Checks on either side of consumer commands protect distinct mutation boundaries.
 
-pnpm lint also runs action-validator 0.9.0 recursively over action.yml/action.yaml
-under actions/. This validates metadata and composite-step structure, including
-required shell fields and unknown properties. These schema checks do not execute
-commands or fully validate composite expressions. Contract/behavior tests remain
-responsible for the selected execution paths. Both tools are pinned in mise.toml;
-CI uses their native binaries without Docker.
+The internal CLI loads only the selected operation module. Source guards require no configuration reader, validator bundle or npm implementation; artifact operations also avoid loading configuration/npm modules. Configuration validation still runs at each job's initial configuration gate.
 
-Shared provider workflows evaluate an opted-in latest-stable policy inside the deployment job after its environment gate and
-concurrency acquisition; condition the provider action on eligible=true. An early
-separate policy job could become stale while deployment waits. Matrix/RSP examples
-select the shared flow enforcing this ordering; docs-only deliberately deploys main without release policy.
-This is not an atomic lock against creation of a new release during deployment.
-
-The policy queries the selected release by tag first. A prerelease or draft
-returns eligible=false without calling releases/latest, including the first
-prerelease before any stable release exists. Stable selections then query latest;
-matching releases must resolve to the exact expected tag commit. Missing selected releases, authentication,
-permission, service/transport errors and missing latest for a stable selection
-remain failures; no API error is converted to a skip.
+The bundled semver/configuration runtime and visible licenses stay in Git, allowing downloaded actions to run without toolkit node_modules. Local pnpm check regenerates code/Schema and runs tests/lint; CI compares bytes without rewriting or Git delivery. See [verification](verification.md) for missing/modified distribution checks, action metadata validation and hosted integration limits.
 
 ## Documentation artifact schema
 
@@ -174,10 +147,4 @@ boundaries; lib modules are not. The draft v1 is unpublished. Stable-interface
 breaking changes require a new major version. Pin full SHAs and validate upgrades
 against independent fixtures and affected project examples.
 
-This draft restructuring replaces deployment published-sha/release-tag with
-expected-sha and keeps stable-release policy selection in callers while shared workflows execute it. mise/pnpm are opt-in;
-site-directory is explicit. Old SHA-only artifacts fail: rebuild instead of
-inventing metadata. Consumers inherit the preparation preset and use native
-release-it hooks/configuration; no separate preparation script or monorepo release
-planner is provided. The CLI also prepares independently tagged subdirectory packages. See the
-[release-it guide](release-it.md) for versions, authorization and staging behavior.
+Only the current configuration-based workflows and operation composites are exposed; no deprecated entries, aliases or compatibility wrappers are retained. Preparation uses native release-it and consumer hooks; see the [release-it guide](release-it.md).

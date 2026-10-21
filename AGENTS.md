@@ -17,6 +17,13 @@ deployment configuration. Organization defaults and workflow templates belong to
   linguist-generated. CI uses `mise exec -- pnpm build:check` without rewriting
   files or automatically committing/pushing. Consumers do not install toolkit
   dependencies. Keep final-candidate and same-tarball checks around native tools.
+- Keep project configuration/defaults/task rules in config/project.mjs with Valibot;
+  generate input JSON Schema and bundle its parser alongside semver. Preserve both
+  licenses and reject unsupported JSON Schema conversion. check.yml is the
+  read-only code/docs entry and the sole reusable docs builder. Standard workflows
+  accept tracked project JSON and runtime selectors; custom jobs use composites.
+  release/recovery remain separate permission graphs. Do not retain deprecated
+  entries, input aliases or compatibility wrappers for this unreleased interface.
 - Use `mise exec -- pnpm lint`: actionlint 1.7.12 checks workflows/examples;
   action-validator 0.9.0 checks action metadata recursively under actions/.
 - Test observable preparation and workflow behavior with temporary Git fixtures;

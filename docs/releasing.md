@@ -7,7 +7,7 @@ and Git state. The release-it changelog plugin summarizes commits; it does not r
 or migration decisions. Read [publication limits](adoption.md#publication-guarantees-and-limits)
 and the [interface scope](architecture.md#scope-and-ownership) before live delivery.
 
-Standard callers use [shared release/recovery orchestration](orchestration.md). Product checks finish first; the toolkit then validates the native candidate, builds documentation when selected, publishes the checked tarball and deploys only after npm success.
+Standard callers use [shared release/recovery orchestration](project-workflows.md). Product checks finish first; the toolkit then validates the native candidate, builds documentation when selected, publishes the checked tarball and deploys only after npm success.
 
 ## Package release
 
@@ -53,11 +53,11 @@ the example subpackage workflow uses a tag push instead of workflow_dispatch.
 - **Repository preflight fails:** correct package.json repository to match the
   consumer GitHub repository, including case, then reverify the candidate.
   A Git remote or a Trusted Publisher entry does not fill missing package metadata.
-- **npm succeeds, docs fail:** do not republish the immutable version. Confirm the
-  successful npm job and provenance even if the overall workflow failed. Use a thin
+- **npm succeeds, docs fail:** do not republish the immutable version. Confirm native
+  npm publication using logs, the [saved result/summary](publication-results.md) and provenance even if the npm job or overall workflow failed. Use a thin
   docs-recover.yml call at the confirmed release tag with published-sha. Shared recovery
   rebuilds that source and passes it as expected-sha to deployment without invoking npm.
-- **Artifacts expire or use the old format:** rebuild from the confirmed source
+- **Artifacts expire or fail validation:** rebuild from the confirmed source
   using the current builder. Recovery uploads/deploys a new artifact in its own run.
   Do not substitute newer main content or invent missing metadata.
 

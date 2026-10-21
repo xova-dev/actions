@@ -1,0 +1,97 @@
+name: Check project source
+on:
+  workflow_call:
+    inputs:
+      kind:
+        description: code or docs; neither path publishes or deploys.
+        type: string
+        default: code
+      config-file:
+        type: string
+        default: .github/xova.json
+      source-sha:
+        description: Exact source; defaults to the native event SHA.
+        type: string
+        default: ""
+      detect-changes:
+        description: Enable the configured docs-only optimization for ordinary CI.
+        type: boolean
+        default: false
+      artifact-name:
+        description: Documentation artifact name; used only for kind=docs.
+        type: string
+        default: documentation
+      retention-days:
+        description: Documentation artifact retention; used only for kind=docs.
+        type: number
+        default: 7
+    outputs:
+      source-sha:
+        description: Exact source after checks and final source validation.
+        value: ${{ jobs.check.outputs.source-sha }}
+      code-changed:
+        description: Whether the full code checks were required.
+        value: ${{ jobs.check.outputs.code-changed }}
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      source-sha: ${{ steps.checked.outputs.source-sha }}
+      code-changed: ${{ steps.checked.outputs.source-sha != '' && steps.config.outputs.code-changed || '' }}
+    steps:
+      - name: Validate check selection
+        env:
+          KIND: ${{ inputs.kind }}
+        run: case "$KIND" in code|docs) ;; *) exit 1 ;; esac
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.source-sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - id: config
+        uses: $/actions/project-config
+        with:
+          config-file: ${{ inputs.config-file }}
+          expected-sha: ${{ inputs.source-sha || github.sha }}
+          task: ${{ inputs.kind }}
+          detect-changes: ${{ inputs.detect-changes }}
+          base-sha: ${{ github.event.pull_request.base.sha || github.event.before }}
+      - uses: $/actions/setup
+        with:
+          toolchain: ${{ fromJSON(steps.config.outputs.config).setup.toolchain }}
+          node-version: ${{ fromJSON(steps.config.outputs.config).setup.node-version }}
+          install-command: ${{ inputs.kind == 'docs' && fromJSON(steps.config.outputs.config).docs.install-command || fromJSON(steps.config.outputs.config).setup.install-command }}
+          working-directory: ${{ inputs.kind == 'docs' && fromJSON(steps.config.outputs.config).docs.working-directory || fromJSON(steps.config.outputs.config).setup.working-directory }}
+      - name: Validate source before code checks
+        if: inputs.kind == 'code'
+        uses: $/actions/check-source
+        with:
+          expected-sha: ${{ inputs.source-sha || github.sha }}
+      - name: Check source
+        if: inputs.kind == 'code'
+        working-directory: ${{ fromJSON(steps.config.outputs.config).setup.working-directory }}
+        env:
+          COMMAND: ${{ steps.config.outputs.code-changed == 'true' && fromJSON(steps.config.outputs.config).code.check-command || fromJSON(steps.config.outputs.config).code.docs-only-command }}
+        run: bash -e -o pipefail -c "$COMMAND"
+      - name: Check and build documentation
+        if: inputs.kind == 'docs'
+        uses: $/actions/docs-build
+        with:
+          expected-sha: ${{ inputs.source-sha || github.sha }}
+          working-directory: ${{ fromJSON(steps.config.outputs.config).docs.working-directory }}
+          check-command: ${{ fromJSON(steps.config.outputs.config).docs.check-command }}
+          build-command: ${{ fromJSON(steps.config.outputs.config).docs.build-command }}
+          site-directory: ${{ fromJSON(steps.config.outputs.config).docs.site-directory }}
+          artifact-name: ${{ inputs.artifact-name }}
+          retention-days: ${{ inputs.retention-days }}
+      - name: Confirm checked source
+        id: checked
+        uses: $/actions/check-source
+        with:
+          expected-sha: ${{ inputs.source-sha || github.sha }}

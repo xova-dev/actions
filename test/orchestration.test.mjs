@@ -2,10 +2,10 @@ import assert from 'node:assert/strict'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { composite } from './composite.mjs'
-import { fixture, output, runStep, workflow } from './helpers.mjs'
+import { action, fixture, output, runStep, workflow } from './helpers.mjs'
 
 const e = value => '$' + '{{ ' + value + ' }}'
-const eligible = "inputs.deployment-policy == 'always' || steps.policy.outputs.eligible == 'true'"
+const eligible = "fromJSON(needs.validate.outputs.config).docs.deployment-policy == 'always' || steps.policy.outputs.eligible == 'true'"
 
 test('source preflight rejects wrong native identity and invalid recovery settings before emitting outputs', t => {
   const project = fixture(t)
@@ -36,7 +36,7 @@ test('source preflight rejects wrong native identity and invalid recovery settin
 test('publication waits for successful source and documentation while supporting an npm-only flow', () => {
   const release = workflow('release')
   assert.deepEqual(release.jobs.publish.needs, ['source', 'documentation'])
-  const expression = release.jobs.publish.if.slice(3, -2).replaceAll('inputs.docs-provider', 'inputs.provider')
+  const expression = release.jobs.publish.if.slice(3, -2).replaceAll('needs.source.outputs.docs-provider', 'inputs.provider')
   // Only this status expression uses the same boolean/comparison operators in JS and Actions.
   const permitted = Function('needs', 'inputs', 'cancelled', 'return (' + expression + ')')
   const check = (source, documentation, provider, cancelled = false) => permitted({ source: { result: source }, documentation: { result: documentation } }, { provider }, () => cancelled)
@@ -44,44 +44,96 @@ test('publication waits for successful source and documentation while supporting
   assert.equal(check('success', 'success', 'pages'), true)
   for (const args of [['failure', 'skipped', 'none'], ['cancelled', 'success', 'pages'], ['success', 'failure', 'pages'], ['success', 'skipped', 'pages'], ['success', 'success', 'pages', true]])
     assert.equal(check(...args), false, args.join('/'))
-  assert.equal(release.jobs.documentation.with['source-ref'], e('needs.source.outputs.source-sha'))
-  assert.equal(release.jobs.publish.with['expected-sha'], e('needs.source.outputs.source-sha'))
+  assert.equal(release.jobs.documentation.with['source-sha'], e('needs.source.outputs.source-sha'))
+  assert.equal(release.jobs.publish.steps.at(-1).with['expected-sha'], e('needs.source.outputs.source-sha'))
   assert.deepEqual(release.jobs.deploy.needs, ['source', 'documentation', 'publish'])
   assert.equal(release.jobs.deploy.with['expected-sha'], e('needs.source.outputs.source-sha'))
 })
 
-test('the recovery graph rebuilds the confirmed source and contains no npm publication path', () => {
+function recoveryGraph() {
+  return {
+    workflows: Object.fromEntries(['docs-recover', 'check', 'docs-deploy'].map(name => [name, workflow(name)])),
+    actions: Object.fromEntries(['release-source', 'project-config', 'check-source', 'setup', 'docs-build', 'latest-release', 'docs-pages', 'docs-cloudflare'].map(name => [name, action(name)])),
+  }
+}
+
+function assertRecoveryBoundary(graph) {
   const visited = new Set()
+  const hosted = new Set(['actions/checkout', 'actions/setup-node', 'jdx/mise-action', 'actions/upload-artifact', 'actions/download-artifact', 'actions/configure-pages', 'actions/upload-pages-artifact', 'actions/deploy-pages'])
+  function steps(items) {
+    for (const step of items) {
+      if (!step.uses) continue
+      if (step.uses.startsWith('$/actions/')) {
+        const name = step.uses.slice('$/actions/'.length)
+        assert.ok(graph.actions[name], 'Unexpected recovery action: ' + name)
+        if (visited.has('action:' + name)) continue
+        visited.add('action:' + name)
+        steps(graph.actions[name].runs.steps)
+      } else assert.ok(hosted.has(step.uses.split('@')[0]), 'Unexpected recovery dependency: ' + step.uses)
+    }
+  }
   function visit(name) {
-    assert.ok(!['release', 'npm-publish'].includes(name), 'Recovery reached publication')
+    assert.ok(graph.workflows[name], 'Unexpected recovery workflow: ' + name)
     if (visited.has(name)) return
     visited.add(name)
-    for (const job of Object.values(workflow(name).jobs)) {
-      if (job.uses?.startsWith('./.github/workflows/')) visit(job.uses.split('/').at(-1).replace('.yml', ''))
-      for (const step of job.steps || []) assert.notEqual(step.uses, '$/actions/npm-publish')
+    const definition = graph.workflows[name]
+    for (const [id, job] of Object.entries(definition.jobs)) {
+      assert.equal(job['continue-on-error'], undefined)
+      if (['source', 'documentation', 'check', 'validate'].includes(id)) {
+        assert.deepEqual(job.permissions || definition.permissions, { contents: 'read' })
+        assert.equal(job.environment, undefined)
+        assert.equal(job.secrets, undefined)
+      }
+      if (job.uses) {
+        assert.match(job.uses, /^\.\/\.github\/workflows\//)
+        visit(job.uses.split('/').at(-1).replace('.yml', ''))
+      }
+      steps(job.steps || [])
     }
   }
   visit('docs-recover')
+}
+
+test('the recovery graph rebuilds the confirmed source without reaching publication through workflows or composites', () => {
+  assertRecoveryBoundary(recoveryGraph())
   const recovery = workflow('docs-recover')
   assert.equal(recovery.jobs.source.steps.at(-1).with.mode, 'recovery')
   assert.equal(recovery.jobs.source.steps.at(-1).with['expected-sha'], e('inputs.published-sha'))
   assert.equal(recovery.jobs.documentation.needs, 'source')
-  assert.equal(recovery.jobs.documentation.with['source-ref'], e('needs.source.outputs.source-sha'))
+  assert.equal(recovery.jobs.documentation.with['source-sha'], e('needs.source.outputs.source-sha'))
   assert.equal(recovery.jobs.deploy.uses, workflow('release').jobs.deploy.uses)
 })
 
-test('provider selection rejects unknown values and missing release tags instead of silently skipping', t => {
-  const project = fixture(t)
-  const run = workflow('docs-deploy').jobs.validate.steps[0].run
+test('recovery boundary rejects hidden publishers and elevated build/source grants', () => {
+  for (const mutate of [
+    graph => { graph.workflows['docs-recover'].jobs.documentation.uses = './.github/workflows/release.yml' },
+    graph => { graph.actions.setup.runs.steps.push({ uses: '$/actions/npm-publish' }) },
+    graph => { graph.actions['docs-build'].runs.steps.push({ uses: '$/actions/npm-publish' }) },
+    graph => { graph.actions['check-source'].runs.steps.push({ uses: '$/actions/npm-publish' }) },
+    graph => { graph.workflows['docs-recover'].jobs.source.permissions['id-token'] = 'write' },
+    graph => { graph.workflows.check.permissions.contents = 'write' },
+    graph => { graph.workflows['docs-recover'].jobs.documentation.environment = 'npm-publish' },
+  ]) {
+    const graph = recoveryGraph()
+    mutate(graph)
+    assert.throws(() => assertRecoveryBoundary(graph))
+  }
+})
+
+test('deployment requires a tracked valid provider and a tag for stable policy before selecting a platform', t => {
+  const run = workflow('docs-deploy').jobs.validate.steps.find(step => step.name === 'Require a release for stable deployment policy').run
   for (const [provider, policy, tag, accepted] of [
     ['pages', 'always', '', true], ['cloudflare', 'latest-stable', 'v0.1.0', true],
     ['pages', 'latest-stable', '', false], ['none', 'always', '', false],
     ['typo', 'always', '', false], ['pages', 'typo', 'v0.1.0', false],
   ]) {
-    const result = runStep(run, project.cwd, { PROVIDER: provider, POLICY: policy, RELEASE_TAG: tag, TOOLCHAIN: 'node' })
-    assert.equal(result.status === 0, accepted, output(result))
+    const project = fixture(t)
+    project.write('.github/xova.json', { schemaVersion: 1, docs: { provider, 'deployment-policy': policy, 'site-directory': 'site' } })
+    const sha = project.commit('chore: deployment selection')
+    const selected = composite('project-config', project.cwd, { task: 'deploy', 'expected-sha': sha })
+    const result = selected.status === 0 ? runStep(run, project.cwd, { POLICY: policy, RELEASE_TAG: tag }) : selected
+    assert.equal(result.status === 0, accepted, result.logs || output(result))
   }
-  assert.notEqual(runStep(run, project.cwd, { PROVIDER: 'cloudflare', POLICY: 'always', TOOLCHAIN: 'typo' }).status, 0)
 })
 
 test('both providers evaluate latest-stable after their shared environment and concurrency gate', () => {
@@ -93,13 +145,13 @@ test('both providers evaluate latest-stable after their shared environment and c
     const job = deployment.jobs[provider]
     assert.ok(job.environment)
     assert.equal(job.concurrency['cancel-in-progress'], false)
-    assert.match(job.concurrency.group, /inputs.concurrency-group/)
+    assert.match(job.concurrency.group, /docs.concurrency-group/)
     const policy = job.steps.findIndex(step => step.id === 'policy')
     const adapter = job.steps.findIndex(step => step.uses === '$/actions/' + name)
     assert.ok(policy >= 0 && adapter > policy)
-    assert.equal(job.steps[policy].if, "inputs.deployment-policy == 'latest-stable'")
+    assert.equal(job.steps[policy].if, "fromJSON(needs.validate.outputs.config).docs.deployment-policy == 'latest-stable'")
     assert.equal(job.steps[adapter].if, eligible)
-    for (const step of job.steps.filter(step => step.uses?.startsWith('actions/checkout@') || step.name === 'Install deployment dependencies'))
+    for (const step of job.steps.filter(step => step.uses?.startsWith('actions/checkout@') || step.uses === '$/actions/setup'))
       assert.equal(step.if, eligible)
   }
 })

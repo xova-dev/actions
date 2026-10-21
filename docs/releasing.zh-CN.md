@@ -4,7 +4,7 @@
 
 先确认版本与授权，再检查消费项目发布入口和 Git 状态。release-it Changelog 插件汇总提交，不替代版本说明或迁移决策。真实交付前阅读[发布边界](adoption.zh-CN.md#发布保证与边界)和[接口范围](architecture.zh-CN.md#范围与职责)。
 
-标准调用方使用[共享发布/恢复编排](orchestration.zh-CN.md)。产品检查先完成，工具库再验证原生候选、按需构建文档、发布已检查的 tarball，并仅在 npm 成功后部署。
+标准调用方使用[共享发布/恢复编排](project-workflows.zh-CN.md)。产品检查先完成，工具库再验证原生候选、按需构建文档、发布已检查的 tarball，并仅在 npm 成功后部署。
 
 ## 包发布
 
@@ -31,8 +31,8 @@ gh workflow run publish.yml --ref v0.4.0 -f release-tag=v0.4.0
 - **检查、打包或 tarball 校验失败**：修正并重新验证候选；修改标签仍遵循项目授权。
 - **npm 失败**：重试前检查日志与 registry 状态，保留失败事实；立即缺失元数据可能是传播延迟。
 - **仓库预检失败**：修正 package.json 的 repository，使其与消费项目 GitHub 仓库大小写一致，再重新验证候选。Git remote 或 Trusted Publisher 配置不能补足缺失的包元数据。
-- **npm 成功、文档失败**：不重复发布不可变版本；即使整个工作流失败，也应核对成功的 npm 任务及 provenance。通过薄入口在已确认发布标签上调用 docs-recover.yml，传入 published-sha；共享恢复重建该来源，将其作为 expected-sha 传给部署，不调用 npm。
-- **产物过期或仍是旧格式**：从已确认源码使用当前构建器重新构建；恢复流程在自己的运行中上传并部署新产物，不能替换为更新的 main 内容或补写虚构元数据。
+- **npm 成功、文档失败**：不重复发布不可变版本；即使 npm 任务本身或整个工作流失败，也应通过日志、[保存的结果/摘要](publication-results.zh-CN.md)及 provenance 确认原生 npm 发布操作。通过薄入口在已确认发布标签上调用 docs-recover.yml，传入 published-sha；共享恢复重建该来源，将其作为 expected-sha 传给部署，不调用 npm。
+- **产物过期或验证失败**：从已确认源码使用当前构建器重新构建；恢复流程在自己的运行中上传并部署新产物，不能替换为更新的 main 内容或补写虚构元数据。
 
 稳定版本站点在共享发布/恢复中选择 deployment-policy=latest-stable，由它在串行平台任务内部运行 latest-release，以 eligible=true 控制适配器；只有自定义 composite 组合才自行连接这些步骤。旧版本、预发布或草稿返回 false；策略先检查所选 Release 类型，再请求 latest，因此首个预发布不要求已有稳定版本。Release 不存在、API 错误或稳定候选来源不匹配仍然失败。按样例顺序执行，避免环境审批或排队使先前判断过期。
 

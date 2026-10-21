@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "setup": {
+    "toolchain": "mise",
+    "install-command": "pnpm install --frozen-lockfile && uv sync --project tests/skills --frozen"
+  },
+  "npm": {
+    "package-manager": "pnpm",
+    "verify-command": "RSP_INSTALL_ALLOW_NETWORK=1 pnpm release:check"
+  },
+  "docs": {
+    "provider": "cloudflare",
+    "install-command": "pnpm install --frozen-lockfile",
+    "check-command": "pnpm docs:check",
+    "build-command": "pnpm docs:build",
+    "site-directory": "docs/.vitepress/dist",
+    "deploy-command": "pnpm exec wrangler deploy",
+    "environment-name": "docs-production"
+  }
+}

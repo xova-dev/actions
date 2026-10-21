@@ -11,6 +11,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   check:
+    name: Toolkit checks
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -32,3 +33,42 @@ jobs:
       - run: pnpm test
       - name: Lint workflows, action metadata and consumer examples
         run: pnpm lint
+  code:
+    name: Code workflow
+    uses: ./.github/workflows/check.yml
+    with:
+      kind: code
+      source-sha: ${{ github.sha }}
+      config-file: examples/project/xova.json
+  docs:
+    name: Docs workflow
+    uses: ./.github/workflows/check.yml
+    with:
+      kind: docs
+      source-sha: ${{ github.sha }}
+      config-file: examples/project/xova.json
+  verify:
+    name: Outputs and artifacts
+    needs: [code, docs]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - id: download
+        uses: actions/download-artifact@v7
+        with:
+          name: documentation
+          path: ${{ runner.temp }}/documentation
+      - name: Verify workflow outputs and documentation artifact
+        env:
+          CODE_SOURCE_SHA: ${{ needs.code.outputs.source-sha }}
+          CODE_CHANGED: ${{ needs.code.outputs.code-changed }}
+          DOCS_SOURCE_SHA: ${{ needs.docs.outputs.source-sha }}
+          ARTIFACT_DIRECTORY: ${{ steps.download.outputs.download-path }}
+        run: node test/verify-workflows.mjs

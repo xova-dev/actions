@@ -4,7 +4,7 @@ import { createServer } from 'node:http'
 import { mkdirSync, readFileSync, symlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { parse } from 'yaml'
+import { parseProjectConfig } from '../dist/project-config.mjs'
 import { actionStep, fixture, output, root, runStep } from './helpers.mjs'
 
 test('publication rejects event SHA or ref mismatches before exporting the candidate', t => {
@@ -86,13 +86,14 @@ test('RSP consumer verification installs a packed package with a cold npm cache'
     "assert.equal(require('xova-rsp-install-fixture'), 'cold-cache-installed')",
     "writeFileSync('check-passed', String(allowNetwork))",
   ].join('\n'))
-  const example = parse(readFileSync(join(root, 'examples/rsp/publish.yml'), 'utf8'))
+  const config = parseProjectConfig(JSON.parse(readFileSync(join(root, 'examples/rsp/xova.json'), 'utf8')), 'release')
+  const command = config.npm['verify-command']
   const result = await new Promise((resolve, reject) => {
-    const child = spawn('bash', ['-e', '-o', 'pipefail', '-c', example.jobs.release.with['verify-command']], {
+    const child = spawn('bash', ['-e', '-o', 'pipefail', '-c', command], {
       cwd: project.cwd, timeout: 20000,
       env: {
         PATH: tools + ':' + process.env.PATH, HOME: home, CI: 'true', npm_config_userconfig: '/dev/null',
-        COMMAND: example.jobs.release.with['verify-command'], RSP_INSTALL_ALLOW_NETWORK: '',
+        RSP_INSTALL_ALLOW_NETWORK: '',
         FIXTURE_HOME: home, FIXTURE_REGISTRY: registry, FIXTURE_TARBALL: tarball,
       },
     })
