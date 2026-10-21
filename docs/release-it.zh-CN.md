@@ -20,7 +20,7 @@ pnpm add --save-dev --save-exact release-it@21.1.1 @release-it/conventional-chan
 
 ```json
 {
-  "extends": ["github:xova-dev/actions:config#<verified-full-sha>"]
+  "extends": ["github:xova-dev/actions/config#<verified-full-sha>"]
 }
 ```
 

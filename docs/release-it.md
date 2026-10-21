@@ -25,7 +25,7 @@ preset from a pinned full SHA in the consumer's .release-it.json:
 
 ```json
 {
-  "extends": ["github:xova-dev/actions:config#<verified-full-sha>"]
+  "extends": ["github:xova-dev/actions/config#<verified-full-sha>"]
 }
 ```
 
