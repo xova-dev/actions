@@ -12,6 +12,8 @@ function cached(t) {
   project.write('bin/uv', '#!/bin/bash\nif [ "$UV_LOOKUP_FAILURE" = 1 ]; then exit 37; fi\ntest "$*" = "cache dir"\nprintf "%s\\n" "$UV_CACHE_DIR"\n')
   chmodSync(join(project.cwd, 'bin/uv'), 0o755)
   const env = { PATH: join(project.cwd, 'bin') + ':' + process.env.PATH,
+    // Isolate the selected fixture cache from a hosting setup's exported cache.
+    NPM_CONFIG_CACHE: undefined,
     npm_config_cache: join(project.cwd, 'npm-downloads'), UV_CACHE_DIR: join(project.cwd, 'uv-downloads') }
   return { ...project, env }
 }
