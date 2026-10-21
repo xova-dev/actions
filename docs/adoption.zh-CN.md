@@ -33,7 +33,7 @@ docs-only 提供不需要 package.json 的最小构建器，并包含 .well-know
 
 ## Matrix
 
-样例包含 xova.json，消费方将其放到 .github/xova.json，将 YAML 放入 .github/workflows。CI 在同一 SHA 上并行运行 code、docs，与发布和恢复读取同一配置，不再需要独立 docs.yml。产品矩阵保留在 checks.yml；发布器在精确来源检查通过后构建，不再重复 lint、类型和示例检查。setup.cache 选择 npm/pnpm 下载缓存，docs.cache 只选择 pnpm；checks.yml 保留产品专属 npm/Electron 缓存。
+样例包含 xova.json，消费方将其放到 .github/xova.json，将 YAML 放入 .github/workflows。CI 在同一 SHA 上并行运行 code、docs，与发布和恢复读取同一配置，不再需要独立 docs.yml。产品矩阵保留在 checks.yml；发布器在精确来源检查通过后构建，不再重复 lint、类型和示例检查。setup.cache 仅选择 pnpm，文档直接继承，避免只跑 pnpm 的质量检查先写入空的 npm 缓存；checks.yml 保留产品专属 npm/Electron 缓存。产品验收步骤将 TMPDIR/TEMP/TMP 设为 runner.temp，让 Windows 隔离消费项目使用检出所在卷和已缓存的 pnpm store；仍重新安装并验证消费项目。
 
 样例用消费方自己的 checks.yml 同时服务 CI 和发布，保留精确原生候选上的六个 OS/Node 兼容性任务与三个 Electron 任务。发布入口等待产品检查，再调用 release.yml；docs-recover 只保留一次共享恢复调用。配置中沿用 github-pages 环境与并发锁，文档检查、发布和恢复共用 check(kind=docs)。
 
