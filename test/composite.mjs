@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { action, output, root, runStep } from './helpers.mjs'
 
-// Execute the shipped composite's shell steps; substitute only hosted Actions APIs.
+// Execute shipped steps; the caller supplies tools and substitutes hosted APIs.
 export function composite(name, cwd, supplied = {}, env = {}, external = () => ({})) {
   const definition = action(name)
   const inputs = Object.fromEntries(Object.entries(definition.inputs || {}).map(([key, value]) => [key, value.default ?? '']))

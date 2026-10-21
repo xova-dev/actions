@@ -13,4 +13,5 @@ jobs:
     with:
       release-tag: ${{ github.ref_name }}
       verify-command: npm test && npm run build
+      package-verify-command: node check-package.mjs
       environment-name: public-npm

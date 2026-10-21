@@ -8,6 +8,7 @@
     "directory": "packages/widget"
   },
   "files": ["dist/"],
+  "devDependencies": { "release-it": "21.1.1" },
   "scripts": {
     "test": "node --test check.test.mjs",
     "build": "node build.mjs"

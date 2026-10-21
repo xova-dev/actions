@@ -14,7 +14,8 @@ are placeholders; replace them with the same verified full SHA throughout a flow
 The consumer's Actions policy must allow this repository and referenced actions.
 
 The toolkit package.json is private and manages development dependencies only.
-Public interfaces are action.yml and workflow_call, not an npm package or lib CLI.
+Public interfaces are action.yml, workflow_call and the release-it preparation
+preset, not an npm package or lib CLI.
 Same-commit `$/actions/...` references inside recipes follow the pinned workflow
 revision automatically and require GitHub.com.
 
@@ -40,23 +41,32 @@ without Docker.
 1. Keep CI and project tools/checks in the consumer. For the recipes, defaults are
    Node 24 and npm ci. Select toolchain=mise and explicit pnpm commands for a mise
    project; node-version only affects node mode. For other setup, use composites.
+   npm-publish requires release-it 21.1.1 in the consumer's locked development
+   dependencies; the native CLI and npm publisher are used directly.
 2. With a composite, check out the intended source and install tools/dependencies
    before invoking it. Set permissions, environment and concurrency on the job.
    Each site's artifact-name must be unique within a run. Use stable, distinct
    Cloudflare site-id values for independent targets; Pages has one repository site.
 3. Audit lifecycle hooks. Explicit verify-command must generate, check and build
-   the package. Packing/publication disable lifecycle scripts. Necessary release
-   materials are allowed; checks/builds must not mutate tracked candidate files.
+   the package. Set package-manager=pnpm for pnpm projects; mise setup alone does
+   not select a packer. The default npm packer rejects catalog:/workspace: dependencies.
+   Packing/publication disable lifecycle scripts. Optional package-verify-command
+   checks the absolute TARBALL file; adapt existing tests to consume it rather than
+   pack again. Necessary release materials are allowed; checks must not mutate
+   tracked candidate files, HEAD, the index or the packed bytes. Tracked sources
+   and index must already be clean before checks begin. Supply tar for reading
+   the packed manifest; the Ubuntu recipe already includes it.
 4. Configure npm Trusted Publishing per package using the consumer owner/repository,
    caller entry filename (for example publish.yml), and the actual job environment.
    The recipe defaults to npm-publish; npm-package uses public-npm and subpackage
    uses widget-npm. npm authenticates the caller workflow, not the toolkit filename.
-   Use npm 11.5.1+ and Node.js 22.14.0+ (this toolkit's reference setup is Node 24).
+   Use npm 11.5.1+ and a release-it-supported Node version: ^22.22.2, ^24.15.0 or
+   >=26.0.0 (this toolkit's reference setup is Node 24).
    Enable direct npm publish in allowed actions. This interface does not use npm
    stage publish or long-lived npm tokens. Public-repository provenance is required.
    package.json must also declare a public repository matching the consumer's
    GitHub owner/name, including case. npm-publish checks this before verification
-   and again before packing. See [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers/)
+   and again before packing, then validates the actual archived manifest. See [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers/)
    and [provenance requirements](https://docs.npmjs.com/generating-provenance-statements/).
 5. Configure Pages or Cloudflare independently. Recipes expose environment-name;
    direct actions use the caller job environment. For Cloudflare, provide locked
@@ -84,8 +94,10 @@ illustrative: use a package you own, replace repository.url with the consumer's
 actual GitHub repository, and configure Trusted Publishing for that package.
 Keep repository.directory aligned with the actual subpackage path (packages/widget
 in this example). The subpackage example publishes one package per explicit tag, not an automatic
-workspace release plan. The standalone preparation script is not a namespaced-tag
-or multi-package preparation tool.
+workspace release plan. Consumers use the shared [release-it configuration](release-it.md)
+and native CLI/hooks, including namespaced tag configuration for one package.
+The npm example also installs and checks the exact tarball before
+publication. Generic pnpm fixtures test catalog/workspace version expansion.
 
 docs-only includes a minimal builder without package.json and a .well-known file
 to demonstrate hidden content surviving the Pages handoff. multi-site is a workflow
@@ -106,7 +118,10 @@ These requirements remain in the consumer. expected-sha detects a tag moving awa
 from the previously checked candidate. The example explicitly selects mise/pnpm.
 
 Separate local preparation from commit, tag, push and GitHub Release creation
-according to authorization. Keep the old entry until migration is accepted.
+according to authorization. Keep the old entry until migration is accepted. The
+example selects package-manager=pnpm; this toolkit change does not migrate the
+actual Matrix repository. Its package tests still need adaptation to consume
+TARBALL before connecting package-verify-command.
 
 ## RSP
 
@@ -132,7 +147,10 @@ candidate outputs and verification. Dispatch at the tag; selecting another tag f
 main is rejected. Provenance variables are not rewritten. The cold-cache RSP
 regression remains exercised with a real local dependency tarball server.
 
-Regression tests also execute independent consumer checks/builds, real npm packing,
-and composite script paths; publication and hosted APIs are substituted. These
+Regression tests execute independent consumer checks/builds, the real release-it
+CLI, native npm/pnpm packing and composite steps. Fixtures install consumer sources
+with --omit=dev and explicitly link the toolkit's locked release-it tool; CI also
+installs both npm examples' full locked dependencies and runs their CLI. Remote
+publication and hosted APIs are substituted. These
 results do not establish live npm OIDC, GitHub artifact transport or deployment.
 See [architecture](architecture.md) for support limits and artifact trust boundaries.

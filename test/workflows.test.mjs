@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, symlinkSync, writeFil
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { parse } from 'yaml'
-import { action, actionStep, fixture, output, root, runStep, workflow } from './helpers.mjs'
+import { action, actionStep, fixture, linkReleaseIt, output, root, runStep, workflow } from './helpers.mjs'
 import { composite } from './composite.mjs'
 
 const fields = cwd => Object.fromEntries(readFileSync(join(cwd, 'step-output'), 'utf8').trim().split('\n').filter(Boolean).map(line => {
@@ -79,35 +79,24 @@ test('prereleases select next or an explicit channel and cannot use latest', t =
   assert.notEqual(candidate(project, { ...env, NPM_TAG: 'latest' }).status, 0)
 })
 
-test('packing preserves verified output, ignores lifecycle hooks and rejects candidate mutation', t => {
-  const project = releaseCandidate(t)
-  const manifest = JSON.parse(readFileSync(join(project.cwd, 'package.json')))
-  project.write('package.json', { ...manifest, scripts: { prepack: 'node -e "process.exit(13)"' } })
-  project.commit('chore: fixture lifecycle')
-  project.git('tag', '-f', 'v0.2.0')
-  project.write('dist/index.js', 'export const built = true\n')
-  const env = {
-    npm_config_cache: join(project.cwd, '.npm-cache'), EXPECTED_SHA: project.git('rev-parse', 'HEAD'),
-    EXPECTED_VERSION: '0.2.0', RELEASE_TAG: 'v0.2.0', NPM_TAG: 'auto', VERIFY_COMMAND: 'npm test',
-    GITHUB_SHA: project.git('rev-parse', 'HEAD'), GITHUB_REF: 'refs/tags/v0.2.0',
+test('canonical build metadata is preserved without making a stable version a prerelease', t => {
+  for (const [version, tag] of [['0.2.0+build-1', 'latest'], ['0.2.0-beta.1+build.7', 'next']]) {
+    const project = releaseCandidate(t, version)
+    const result = candidate(project, { RELEASE_TAG: 'v' + version })
+    assert.equal(result.status, 0, output(result))
+    assert.deepEqual(fields(project.cwd), { 'source-sha': project.sha, version, 'npm-tag': tag })
   }
-  const pack = actionStep('npm-publish', 'package').run
-  const result = runStep(pack, project.cwd, env)
-  assert.equal(result.status, 0, output(result))
-  assert.ok(existsSync(fields(project.cwd).tarball))
-  project.write('source.js', 'modified tracked source')
-  assert.notEqual(runStep(pack, project.cwd, env).status, 0)
-  project.commit('fix: changed candidate')
-  assert.notEqual(runStep(pack, project.cwd, env).status, 0)
 })
 
 test('a failing consumer check stops the composite before packing or publication', t => {
   const project = fixture(t, '0.2.0')
+  linkReleaseIt(project.cwd)
   const result = composite('npm-publish', project.cwd, { 'release-tag': 'v0.2.0', 'verify-command': 'exit 23' }, {
     GITHUB_SHA: project.git('rev-parse', 'HEAD'), GITHUB_REF: 'refs/tags/v0.2.0',
   })
-  assert.equal(result.status, 23)
-  assert.equal(readdirSync(join(project.cwd, 'runner')).some(name => name.startsWith('xova-npm-')), false)
+  assert.notEqual(result.status, 0)
+  assert.match(result.logs, /exited with code 23/)
+  assert.equal(readdirSync(join(project.cwd, 'runner'), { recursive: true }).some(name => name.endsWith('.tgz')), false)
 })
 
 test('documentation artifacts reject changed sources, unsafe paths, empty sites and symlinks', t => {
@@ -171,6 +160,33 @@ test('documentation check failures stop builds and artifact uploads', t => {
   }, {}, () => { assert.fail('A failing check reached artifact upload') })
   assert.equal(result.status, 29)
   assert.equal(existsSync(join(project.cwd, 'build-ran')), false)
+})
+
+test('dirty documentation source stops before checks, builds and artifact uploads', t => {
+  for (const staged of [false, true]) {
+    const project = fixture(t)
+    project.write('source.js', 'uncommitted documentation source')
+    if (staged) project.git('add', 'source.js')
+    const result = composite('docs-build', project.cwd, {
+      'expected-sha': project.git('rev-parse', 'HEAD'), 'check-command': 'touch check-ran',
+      'build-command': 'mkdir dist && cp source.js dist/index.html && git restore --staged --worktree source.js',
+      'site-directory': 'dist',
+    }, {}, () => { assert.fail('Dirty source reached artifact upload') })
+    assert.notEqual(result.status, 0, result.logs)
+    assert.equal(existsSync(join(project.cwd, 'check-ran')), false)
+    assert.equal(existsSync(join(project.cwd, 'dist')), false)
+  }
+})
+
+test('artifact directory allocation failures stop before provider download', t => {
+  const project = fixture(t)
+  project.write('not-a-directory', 'keep')
+  for (const name of ['docs-pages', 'docs-cloudflare']) {
+    project.write('step-output', '')
+    const result = runStep(actionStep(name, 'directory').run, project.cwd, { RUNNER_TEMP: join(project.cwd, 'not-a-directory') })
+    assert.notEqual(result.status, 0, output(result))
+    assert.equal(readFileSync(join(project.cwd, 'step-output'), 'utf8'), '')
+  }
 })
 
 test('release consumers evaluate latest-release policy inside the serialized deployment job', () => {

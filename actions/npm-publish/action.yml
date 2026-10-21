@@ -1,5 +1,5 @@
 name: Verify and publish a public npm package
-description: Verify the tagged candidate and publish its packed output with native event provenance.
+description: Verify and publish through release-it's npm plugin. Requires the caller's locked release-it 21.1.1 installation.
 inputs:
   release-tag:
     description: Existing tag at the native workflow event commit.
@@ -7,6 +7,12 @@ inputs:
   verify-command:
     description: All required package checks, generation and build commands.
     required: true
+  package-manager:
+    description: npm or pnpm; use the project's native packer. Install it before invoking this action.
+    default: npm
+  package-verify-command:
+    description: Optional checks consuming the already packed file through the absolute TARBALL environment variable.
+    default: ''
   expected-sha:
     description: Optional candidate already validated by upstream jobs.
     default: ''
@@ -22,10 +28,10 @@ inputs:
 outputs:
   source-sha:
     description: Verified and published source commit.
-    value: ${{ steps.package.outputs.source-sha }}
+    value: ${{ steps.publish.outputs.source-sha }}
   version:
-    description: Published package version.
-    value: ${{ steps.package.outputs.version }}
+    description: Published npm registry version, excluding SemVer build metadata.
+    value: ${{ steps.publish.outputs.version }}
 runs:
   using: composite
   steps:
@@ -39,30 +45,26 @@ runs:
         TAG_PREFIX: ${{ inputs.tag-prefix }}
         NPM_TAG: ${{ inputs.npm-tag }}
         VERIFY_COMMAND: ${{ inputs.verify-command }}
+        PACKAGE_MANAGER: ${{ inputs.package-manager }}
         EXPECTED_SHA: ${{ inputs.expected-sha }}
       run: node "$XOVA_ACTION_PATH/../../lib/cli.mjs" npm-candidate
-    - name: Verify and build final candidate
-      shell: bash
-      working-directory: ${{ inputs.working-directory }}
-      env:
-        COMMAND: ${{ inputs.verify-command }}
-      run: bash -e -o pipefail -c "$COMMAND"
-    - name: Pack verified candidate
-      id: package
+    - name: Verify and publish with release-it
+      id: publish
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       env:
         XOVA_ACTION_PATH: ${{ github.action_path }}
         RELEASE_TAG: ${{ inputs.release-tag }}
         TAG_PREFIX: ${{ inputs.tag-prefix }}
-        NPM_TAG: ${{ inputs.npm-tag }}
+        NPM_TAG: ${{ steps.candidate.outputs.npm-tag }}
         VERIFY_COMMAND: ${{ inputs.verify-command }}
+        PACKAGE_VERIFY_COMMAND: ${{ inputs.package-verify-command }}
+        PACKAGE_MANAGER: ${{ inputs.package-manager }}
         EXPECTED_SHA: ${{ steps.candidate.outputs.source-sha }}
         EXPECTED_VERSION: ${{ steps.candidate.outputs.version }}
-      run: node "$XOVA_ACTION_PATH/../../lib/cli.mjs" npm-pack
-    - name: Publish verified tarball
-      shell: bash
-      env:
-        TARBALL: ${{ steps.package.outputs.tarball }}
-        NPM_TAG: ${{ steps.package.outputs.npm-tag }}
-      run: npm publish "$TARBALL" --access public --provenance --ignore-scripts --tag "$NPM_TAG"
+      run: |
+        TARBALL="$(mktemp -d "$RUNNER_TEMP/xova-npm-XXXXXX")/package.tgz"
+        export TARBALL
+        npm exec --no -- release-it --ci --no-increment --verbose \
+          --configDir "$XOVA_ACTION_PATH/../../config" \
+          --config "$XOVA_ACTION_PATH/../../config/npm-publish.mjs"

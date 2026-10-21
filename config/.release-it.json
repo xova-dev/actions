@@ -1,0 +1,23 @@
+{
+  "git": {
+    "requireUpstream": false,
+    "commit": false,
+    "commitMessage": "chore(release): v${version}",
+    "tag": false,
+    "tagName": "v${version}",
+    "push": false
+  },
+  "npm": {
+    "publish": false,
+    "versionArgs": ["--ignore-scripts"]
+  },
+  "github": { "release": false },
+  "gitlab": { "release": false },
+  "plugins": {
+    "@release-it/conventional-changelog": {
+      "preset": { "name": "conventionalcommits" },
+      "infile": "CHANGELOG.md",
+      "ignoreRecommendedBump": true
+    }
+  }
+}

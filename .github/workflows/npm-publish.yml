@@ -9,6 +9,14 @@ on:
       verify-command:
         type: string
         required: true
+      package-manager:
+        description: Native packer, npm or pnpm; the selected tool must be installed by setup.
+        type: string
+        default: npm
+      package-verify-command:
+        description: Additional checks of the already packed file via TARBALL.
+        type: string
+        default: ''
       expected-sha:
         type: string
         default: ''
@@ -39,7 +47,7 @@ on:
         description: Exact verified and published commit.
         value: ${{ jobs.publish.outputs.source-sha }}
       version:
-        description: Published package version.
+        description: Published npm registry version, excluding SemVer build metadata.
         value: ${{ jobs.publish.outputs.version }}
 permissions:
   contents: read
@@ -88,4 +96,6 @@ jobs:
           tag-prefix: ${{ inputs.tag-prefix }}
           working-directory: ${{ inputs.working-directory }}
           verify-command: ${{ inputs.verify-command }}
+          package-manager: ${{ inputs.package-manager }}
+          package-verify-command: ${{ inputs.package-verify-command }}
           npm-tag: ${{ inputs.npm-tag }}

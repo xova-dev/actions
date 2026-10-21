@@ -33,6 +33,7 @@ jobs:
     with:
       release-tag: ${{ github.event.release.tag_name || inputs.release-tag }}
       expected-sha: ${{ needs.documentation.outputs.source-sha }}
+      package-manager: pnpm
       verify-command: pnpm lint && pnpm typecheck && pnpm build && pnpm check:examples && pnpm --filter
         matrix-basic-example run doctor && pnpm --filter matrix-basic-example run test && pnpm
         --filter matrix-basic-example run build

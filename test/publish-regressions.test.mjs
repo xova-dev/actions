@@ -87,9 +87,8 @@ test('RSP consumer verification installs a packed package with a cold npm cache'
     "writeFileSync('check-passed', String(allowNetwork))",
   ].join('\n'))
   const example = parse(readFileSync(join(root, 'examples/rsp/publish.yml'), 'utf8'))
-  const verify = actionStep('npm-publish', 'Verify and build final candidate')
   const result = await new Promise((resolve, reject) => {
-    const child = spawn('bash', ['-e', '-o', 'pipefail', '-c', verify.run], {
+    const child = spawn('bash', ['-e', '-o', 'pipefail', '-c', example.jobs.publish.with['verify-command']], {
       cwd: project.cwd, timeout: 20000,
       env: {
         PATH: tools + ':' + process.env.PATH, HOME: home, CI: 'true', npm_config_userconfig: '/dev/null',

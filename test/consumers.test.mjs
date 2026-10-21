@@ -1,20 +1,41 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { chmodSync, cpSync, existsSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { basename, join } from 'node:path'
 import { test } from 'node:test'
 import { parse } from 'yaml'
-import { action, fixture, output, root, runStep, workflow } from './helpers.mjs'
+import { action, actionStep, fixture, linkReleaseIt, output, root, runStep, stubNpmPublication, workflow } from './helpers.mjs'
 import { composite } from './composite.mjs'
 
 const example = (directory, file) => parse(readFileSync(join(root, 'examples', directory, file), 'utf8'))
+
+test('a downloaded toolkit verifies and publishes with bundled semver and no toolkit node_modules', t => {
+  const project = fixture(t, '0.2.0')
+  const toolkit = join(project.cwd, 'downloaded-toolkit')
+  for (const directory of ['actions', 'lib', 'config', 'dist'])
+    cpSync(join(root, directory), join(toolkit, directory), { recursive: true })
+  linkReleaseIt(project.cwd)
+  const env = {
+    ...stubNpmPublication(project), XOVA_ACTION_PATH: join(toolkit, 'actions/npm-publish'),
+    RELEASE_TAG: 'v0.2.0', NPM_TAG: 'auto', VERIFY_COMMAND: 'mkdir dist && cp source.js dist/index.js',
+    GITHUB_SHA: project.git('rev-parse', 'HEAD'), GITHUB_REF: 'refs/tags/v0.2.0',
+  }
+  const candidate = runStep(actionStep('npm-publish', 'candidate').run, project.cwd, env)
+  assert.equal(candidate.status, 0, output(candidate))
+  const result = runStep(actionStep('npm-publish', 'publish').run, project.cwd, {
+    ...env, NPM_TAG: 'latest', EXPECTED_SHA: env.GITHUB_SHA, EXPECTED_VERSION: '0.2.0',
+  })
+  assert.equal(result.status, 0, output(result))
+  assert.equal(existsSync(join(toolkit, 'node_modules')), false)
+  assert.equal(existsSync(join(project.cwd, 'publication.json')), true)
+})
 
 for (const [directory, packageDirectory, tag] of [
   ['npm-package', '.', 'v1.0.0'], ['subpackage', 'packages/widget', 'widget@2.0.0'],
 ]) {
   test(directory + ' installs, verifies, builds and packs through the public composite without mise or pnpm', t => {
     const project = fixture(t)
-    cpSync(join(root, 'examples', directory), project.cwd, { recursive: true })
+    cpSync(join(root, 'examples', directory), project.cwd, { recursive: true, filter: path => basename(path) !== 'node_modules' })
     const sha = project.commit('feat: independent consumer')
     project.git('tag', tag)
     const document = example(directory, 'publish.yml')
@@ -22,27 +43,19 @@ for (const [directory, packageDirectory, tag] of [
     const contract = workflow('npm-publish').on.workflow_call.inputs
     const install = directory === 'npm-package' ? contract['install-command'].default : document.jobs.publish.steps.find(item => item.run).run
     const env = { npm_config_cache: join(project.cwd, '.cache'), npm_config_audit: 'false', npm_config_fund: 'false', npm_config_userconfig: '/dev/null' }
-    const installed = runStep(install, join(project.cwd, packageDirectory), env)
+    // Exercise source installation offline; CI separately installs all locked dev tools.
+    const installed = runStep(install + ' --omit=dev', join(project.cwd, packageDirectory), env)
     assert.equal(installed.status, 0, output(installed))
-    const npm = execFileSync('/usr/bin/which', ['npm'], { encoding: 'utf8' }).trim()
-    project.write('bin/npm.cjs', '#!' + process.execPath + '\n' + [
-      "const fs=require('node:fs'), cp=require('node:child_process');",
-      "if(process.argv[2] === 'publish') fs.writeFileSync(process.env.PUBLISH_RECORD,JSON.stringify(process.argv.slice(2)));",
-      "else { const result=cp.spawnSync(process.env.FIXTURE_NPM,process.argv.slice(2),{stdio:'inherit'}); process.exit(result.status ?? 1); }",
-    ].join('\n'))
-    chmodSync(join(project.cwd, 'bin/npm.cjs'), 0o755)
-    symlinkSync('npm.cjs', join(project.cwd, 'bin/npm'))
-    symlinkSync('/bin/bash', join(project.cwd, 'bin/bash'))
+    linkReleaseIt(join(project.cwd, packageDirectory))
     const supplied = Object.fromEntries(Object.entries(call.with).filter(([key]) => key in action('npm-publish').inputs))
     supplied['release-tag'] = tag
     const result = composite('npm-publish', project.cwd, supplied, {
       ...env, GITHUB_SHA: sha, GITHUB_REF: 'refs/tags/' + tag, GITHUB_REPOSITORY: 'example/project',
-      PATH: join(project.cwd, 'bin') + ':' + process.env.PATH,
-      FIXTURE_NPM: npm, PUBLISH_RECORD: join(project.cwd, 'publish.json'),
+      ...stubNpmPublication(project),
     })
     assert.equal(result.status, 0, result.logs)
     assert.equal(result.outputs['source-sha'], sha)
-    const published = JSON.parse(readFileSync(join(project.cwd, 'publish.json')))
+    const { args: published } = JSON.parse(readFileSync(join(project.cwd, 'publication.json')))
     assert.ok(published.includes('--provenance'))
     assert.ok(published.includes('--ignore-scripts'))
     const built = execFileSync('tar', ['-xOf', published[1], 'package/dist/index.mjs'], { encoding: 'utf8' })

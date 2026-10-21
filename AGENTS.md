@@ -1,11 +1,22 @@
 # Xova Actions
 
-This repository owns reusable GitHub workflows, release preparation tools and the
+This repository owns reusable GitHub workflows, release-it presets and the
 `xova-release` Skill. Consumer repositories own their checks, release content and
 deployment configuration. Organization defaults and workflow templates belong to
 `xova-dev/.github`.
 
-- Use `mise exec -- pnpm install --frozen-lockfile` and `mise exec -- pnpm test`.
+- Reuse release-it and the official Conventional Changelog plugin through
+  config/.release-it.json; do not rebuild their version/changelog lifecycle.
+- Use release-it's native CLI and npm publisher. Keep custom code limited to
+  candidate, tarball and deployment invariants absent from upstream tools.
+- Keep preparation separate from Git delivery and publication. Package tests
+  consume TARBALL; publish the same bytes using the selected npm/pnpm packer.
+- Use `mise exec -- pnpm install --frozen-lockfile` and `mise exec -- pnpm check`;
+  check regenerates distribution files, then runs tests and lint.
+- Keep the semver bundle and its license in Git; mark only generated code as
+  linguist-generated. CI uses `mise exec -- pnpm build:check` without rewriting
+  files or automatically committing/pushing. Consumers do not install toolkit
+  dependencies. Keep final-candidate and same-tarball checks around native tools.
 - Use `mise exec -- pnpm lint`: actionlint 1.7.12 checks workflows/examples;
   action-validator 0.9.0 checks action metadata recursively under actions/.
 - Test observable preparation and workflow behavior with temporary Git fixtures;

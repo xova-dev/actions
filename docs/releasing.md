@@ -3,23 +3,24 @@
 English | [简体中文](releasing.zh-CN.md)
 
 Establish the version and authorization, then inspect the consumer release entry
-and Git state. Changelogen summarizes commits; it does not replace release notes
+and Git state. The release-it changelog plugin summarizes commits; it does not replace release notes
 or migration decisions. Read [publication limits](adoption.md#publication-guarantees-and-limits)
 and the [interface scope](architecture.md#scope-and-ownership) before live delivery.
 
 ## Package release
 
-1. Preview an explicit version with release.mjs, then prepare version/changelog in
-   a clean worktree. This script supports one package with v-prefixed tags; use the
-   consumer's own tool for a different release model.
+1. Preview an explicit version with the consumer's release-it entry and the shared
+   [preparation preset](release-it.md), then prepare in a clean worktree. Inspect
+   consumer hooks and the resulting index; the official plugin may stage a new changelog.
 2. Review the full diff and add release notes, migrations or examples.
 3. Run project checks and commit when authorized. All necessary release materials
    may be included; no file allowlist, parent-count or special title is required.
 4. With authorization, create a tag matching the package version and tag-prefix,
    push the candidate and create a GitHub Release if the project uses one.
-5. Invoke npm-publish at that tag. Its explicit checks/builds and packing verify
-   the final candidate. The verified tarball is published with npm OIDC and lifecycle
-   scripts disabled. Required upstream jobs must check the same expected-sha.
+5. Invoke npm-publish at that tag. Its explicit checks/builds and native npm/pnpm
+   packing verify the final candidate. package-verify-command can test that same
+   file via TARBALL. Source and bytes are rechecked before npm OIDC publication,
+   without lifecycle scripts or repacking. Required upstream jobs check the same expected-sha.
 6. Apply the project's site policy. Publication-coupled sites deploy only after npm
    succeeds, using its source-sha and the matching documentation artifact. docs-only
    sites can deploy independently. latest-release is optional, not a provider rule.
@@ -43,7 +44,7 @@ the example subpackage workflow uses a tag push instead of workflow_dispatch.
 ## Failure recovery
 
 - **Preparation fails:** inspect and retain partial work before retrying.
-- **Checks/packing fail:** correct and reverify the candidate. Changing tags still
+- **Checks/packing/tarball verification fail:** correct and reverify the candidate. Changing tags still
   follows project authorization.
 - **npm fails:** inspect logs and registry state before replaying; retain the
   failure. Immediate missing metadata can be propagation delay.

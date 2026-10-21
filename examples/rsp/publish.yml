@@ -30,6 +30,7 @@ jobs:
     with:
       release-tag: ${{ github.event.release.tag_name || inputs.release-tag }}
       expected-sha: ${{ needs.documentation.outputs.source-sha }}
+      package-manager: pnpm
       verify-command: RSP_INSTALL_ALLOW_NETWORK=1 pnpm release:check
       install-command: pnpm install --frozen-lockfile && uv sync --project tests/skills --frozen
       toolchain: mise

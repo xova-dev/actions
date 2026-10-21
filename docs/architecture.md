@@ -19,8 +19,9 @@ configure maintainers only.
 | Owner | Decisions |
 | --- | --- |
 | Consumer job | Events, checkout, tools, dependencies, checks, environments, permissions, concurrency, required upstream jobs and deployment eligibility. |
-| Composite action | Operation ordering, source validation, packing/publication or artifact validation/provider invocation. |
+| Composite action | Operation ordering, source validation, native packing/publication or artifact validation/provider invocation. |
 | Reusable workflow | Common Ubuntu setup around one composite; no implicit latest-release or npm-to-docs dependency. |
+| release-it presets | Preparation defaults/official changelog integration; the publication preset uses the built-in npm publisher with a small candidate plugin. |
 | lib/ | Internal implementation of shared invariants, not public entry points. |
 
 ## Public actions
@@ -29,21 +30,48 @@ Each action.yml owns the authoritative input/output descriptions.
 
 | Action | Contract |
 | --- | --- |
-| [npm-publish](../actions/npm-publish/action.yml) | Requires release-tag and verify-command; optional expected-sha, tag-prefix (v), working-directory (.), npm-tag (auto). Returns source-sha and version after publication. |
+| [npm-publish](../actions/npm-publish/action.yml) | Requires release-tag and verify-command; optional expected-sha, tag-prefix (v), working-directory (.), npm-tag (auto), package-manager (npm) and package-verify-command. Returns source-sha and version after publication. |
 | [docs-build](../actions/docs-build/action.yml) | Requires expected-sha, check-command, build-command, site-directory; optional working-directory (.), artifact-name (documentation), retention-days (7). Uploads an artifact and returns source-sha. |
 | [docs-pages](../actions/docs-pages/action.yml) | Requires expected-sha; optional artifact-name (documentation). Validates then deploys, returning page-url. Does not need checkout or npm dependencies. |
 | [docs-cloudflare](../actions/docs-cloudflare/action.yml) | Requires expected-sha, site-directory, deploy-command; optional artifact-name and working-directory. Caller checks out that commit, installs locked deployment tools and provides credentials in the step environment. |
 | [latest-release](../actions/latest-release/action.yml) | Optional policy requiring release-tag and expected-sha. Returns eligible=true for the exact latest stable GitHub Release, false for other releases; API errors/source mismatches fail. |
 
 Composites install no project tools/dependencies. Supply Node 24 and Bash; npm
-publication needs npm 11.5.1+, a public repository and Trusted Publishing.
+publication also needs tar, locked release-it 21.1.1, npm 11.5.1+, a public repository
+and Trusted Publishing. release-it requires Node ^22.22.2, ^24.15.0 or >=26.0.0.
 latest-release also needs gh. Pages jobs grant pages:write and id-token:write;
 publication grants id-token:write. Cloudflare credentials are explicit step
 environment variables CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID.
 
 There is no skip-validation switch. Failed checks stop packing/upload/deployment.
-Verification explicitly performs required generation and builds; npm packing and
-publication use --ignore-scripts. Tracked source/index changes are rejected.
+Package verification and documentation builds require clean tracked files and
+index before running consumer commands, then recheck afterward. Untracked or
+ignored build outputs are allowed; commands and generated inputs remain trusted
+consumer responsibilities.
+Candidate preflight uses bundled semver 7.8.5. package.json version must be a
+canonical SemVer; prefixes such as v and leading-zero numeric version/prerelease
+identifiers are rejected. Valid prerelease and build metadata remain in the source
+version and release tag. npm registry identity and the public version output omit
+build metadata; for example 0.2.0+build.007 is published as 0.2.0. Dist-tags retain
+the action's existing character policy and must not parse as a SemVer range:
+v1, v1.4, x and X fail before project checks or candidate outputs.
+Verification explicitly performs required generation and builds. Select npm or
+pnpm via package-manager; both disable pack lifecycle scripts, and npm publication
+uses --ignore-scripts. The default npm packer rejects catalog:/workspace: dependencies;
+pnpm projects select pnpm explicitly. Tests cover native npm and pnpm 12 packing.
+Optional package-verify-command receives the absolute TARBALL path for checks of
+that file. Before publication, source/index/HEAD and the original tarball SHA-256
+are checked again. The exact tarball is published without repacking. Without the
+optional command, package identity/consistency does not imply product compatibility.
+The publication composite has two steps: candidate preflight, then native
+release-it with --no-increment and the toolkit's isolated publication configDir.
+The candidate plugin adds package checks; release-it's built-in npm plugin publishes
+the file. Consumer release-it hooks/plugins, Git delivery and version changes are
+excluded from this CI entry. Successful publication outputs are written afterward.
+Preflight and subsequent candidate checks read npm's effective dry-run configuration
+and require false. A dry run inherited from environment or .npmrc must not produce
+successful publication outputs. The action rejects it rather than overriding it
+into a real publication. Use release-it's preparation preview for dry runs.
 Native GITHUB_SHA/GITHUB_REF must identify the tagged publication candidate; the
 action does not rewrite provenance context. Prereleases default to next and cannot
 use latest. Stable versions default to latest; which versions may advance a
@@ -57,6 +85,14 @@ git, SSH and git+ URL forms, including git@github.com:owner/repo.git. An optiona
 part of repository identity. Passwords, usernames other than git, query strings
 and fragments are rejected. Missing/mismatched metadata fails before
 candidate outputs and is rechecked before packing; local origin is not a substitute.
+After packing, tar reads package/package.json from the actual archive. Its name,
+version, non-private status and repository must match the candidate, including
+when pnpm selects an alternate publishConfig.directory. Packer JSON alone is
+not evidence of the archived manifest. The archived version may exactly match
+the source version or omit its build metadata, as pnpm does; other version changes
+fail. Source-version checks retain the full original value, and tarball SHA-256
+checks still cover the exact bytes delivered to npm. Build metadata does not
+create a separate npm registry version.
 
 ## Reusable workflows and policy
 
@@ -72,6 +108,17 @@ workflow's own repository and commit, including SHA-pinned calls. GHES is outsid
 this recipe contract. Actionlint 1.7.12 predates that syntax: only its missing-ref
 diagnostic for these paths is excluded, while tests validate targets and inputs.
 Other lint diagnostics remain enabled.
+
+Toolkit JavaScript imports the checked-in dist/semver.mjs bundle, including in
+downloaded action checkouts without node_modules. scripts/build.mjs generates it
+from the locked dependency and copies its license. Both distribution files stay
+in Git. .gitattributes marks dist/*.mjs as generated while leaving licenses visible.
+For local development, pnpm check regenerates the files, then runs tests and lint.
+pnpm build:check compares the generated bytes without writing; CI runs it before
+tests and lint and never automatically commits or pushes. Regression fixtures
+exercise missing and modified bundle/license files and ensure check mode never
+rewrites them. esbuild is a development
+dependency only. Consumers continue to provide their locked release-it installation.
 
 pnpm lint also runs action-validator 0.9.0 recursively over action.yml/action.yaml
 under actions/. This validates metadata and composite-step structure, including
@@ -129,5 +176,7 @@ against independent fixtures and affected project examples.
 This draft restructuring replaces deployment published-sha/release-tag with
 expected-sha and moves stable-release policy into callers. mise/pnpm are opt-in;
 site-directory is explicit. Old SHA-only artifacts fail: rebuild instead of
-inventing metadata. Changelogen preparation remains a single-package, v-prefixed
-tag tool and does not infer monorepo release plans.
+inventing metadata. Consumers inherit the preparation preset and use native
+release-it hooks/configuration; no separate preparation script or monorepo release
+planner is provided. The CLI also prepares independently tagged subdirectory packages. See the
+[release-it guide](release-it.md) for versions, authorization and staging behavior.

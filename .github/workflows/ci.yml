@@ -21,6 +21,14 @@ jobs:
         with:
           cache: true
       - run: pnpm install --frozen-lockfile
+      - name: Check bundled runtime dependencies
+        run: pnpm build:check
+      - name: Install locked npm consumer tools
+        run: |
+          for project in examples/npm-package examples/subpackage/packages/widget; do
+            npm ci --prefix "$project" --ignore-scripts --no-audit --no-fund
+            "$project/node_modules/.bin/release-it" --version
+          done
       - run: pnpm test
       - name: Lint workflows, action metadata and consumer examples
         run: pnpm lint

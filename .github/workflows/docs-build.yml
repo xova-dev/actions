@@ -51,7 +51,9 @@ jobs:
           ref: ${{ inputs.source-ref }}
           persist-credentials: false
       - id: source
-        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+        run: |
+          source_sha=$(git rev-parse HEAD)
+          echo "sha=$source_sha" >> "$GITHUB_OUTPUT"
       - name: Validate toolchain selection
         env:
           TOOLCHAIN: ${{ inputs.toolchain }}

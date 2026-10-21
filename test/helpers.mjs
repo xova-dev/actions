@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -27,7 +27,7 @@ export function fixture(t, version = '0.1.0') {
   git('config', 'user.email', 'fixture@example.invalid')
   git('config', 'tag.gpgSign', 'false')
   git('config', 'core.hooksPath', '/dev/null')
-  write('package.json', { name: 'xova-release-fixture', version, repository: 'github:fixture/project', files: ['dist/'], changelog: { noAuthors: true } })
+  write('package.json', { name: 'xova-release-fixture', version, repository: 'github:fixture/project', files: ['dist/'] })
   write('source.js', 'export const answer = 1\n')
   write('CHANGELOG.md', '# Changelog\n')
   commit('chore: initial')
@@ -47,3 +47,27 @@ export function runStep(run, cwd, env = {}) {
 }
 export const output = result => result.stdout + result.stderr
 export const step = (name, id) => Object.values(workflow(name).jobs).flatMap(job => job.steps || []).find(item => item.id === id)
+
+// Use the locked native CLI without network installation in temporary consumers.
+export function linkReleaseIt(directory) {
+  mkdirSync(join(directory, 'node_modules/.bin'), { recursive: true })
+  symlinkSync(join(root, 'node_modules/release-it'), join(directory, 'node_modules/release-it'))
+  symlinkSync('../release-it/bin/release-it.js', join(directory, 'node_modules/.bin/release-it'))
+}
+
+// Intercept only remote publication; execute all other npm commands normally.
+export function stubNpmPublication(project) {
+  const npm = execFileSync('/usr/bin/which', ['npm'], { encoding: 'utf8' }).trim()
+  project.write('bin/npm.cjs', '#!' + process.execPath + '\n' + [
+    "const fs=require('node:fs'), cp=require('node:child_process');",
+    "if(process.argv[2]==='publish'){if(process.env.PUBLISH_FAILURE)process.exit(42);fs.writeFileSync(process.env.PUBLISH_RECORD,JSON.stringify({args:process.argv.slice(2),digest:require('node:crypto').createHash('sha256').update(fs.readFileSync(process.argv[3])).digest('hex')}));}",
+    "else {const r=cp.spawnSync(process.env.FIXTURE_NPM,process.argv.slice(2),{stdio:'inherit'});process.exit(r.status??1);}",
+  ].join('\n'))
+  chmodSync(join(project.cwd, 'bin/npm.cjs'), 0o755)
+  symlinkSync('npm.cjs', join(project.cwd, 'bin/npm'))
+  symlinkSync('/bin/bash', join(project.cwd, 'bin/bash'))
+  return {
+    PATH: join(project.cwd, 'bin') + ':' + process.env.PATH,
+    FIXTURE_NPM: npm, PUBLISH_RECORD: join(project.cwd, 'publication.json'),
+  }
+}

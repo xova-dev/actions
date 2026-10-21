@@ -2,15 +2,15 @@
 
 [English](releasing.md) | 简体中文
 
-先确认版本与授权，再检查消费项目发布入口和 Git 状态。Changelogen 汇总提交，不替代版本说明或迁移决策。真实交付前阅读[发布边界](adoption.zh-CN.md#发布保证与边界)和[接口范围](architecture.zh-CN.md#范围与职责)。
+先确认版本与授权，再检查消费项目发布入口和 Git 状态。release-it Changelog 插件汇总提交，不替代版本说明或迁移决策。真实交付前阅读[发布边界](adoption.zh-CN.md#发布保证与边界)和[接口范围](architecture.zh-CN.md#范围与职责)。
 
 ## 包发布
 
-1. 用 release.mjs 预览显式版本，再在干净工作区准备版本和 changelog。脚本支持单包和 v 前缀标签，其他发布模型使用消费方工具。
+1. 使用消费方 release-it 入口和共享[准备预设](release-it.zh-CN.md)预览显式版本，再在干净工作区准备。审查消费方 hooks 和结果暂存区，官方插件可能暂存新建的 changelog。
 2. 检查完整差异，补充版本说明、迁移或示例。
 3. 执行项目检查，获得授权后提交。允许包含全部必要发布材料，不要求文件白名单、父提交数量或特殊标题。
 4. 获得授权后，创建匹配包版本和 tag-prefix 的标签，推送候选；项目使用 GitHub Release 时再创建 Release。
-5. 在该标签调用 npm-publish，通过显式检查、构建与打包验证最终候选，以 npm OIDC 发布已验证 tarball，并禁用生命周期脚本。必需前置任务检查同一个 expected-sha。
+5. 在该标签调用 npm-publish，通过显式检查、构建和原生 npm/pnpm 打包验证最终候选。package-verify-command 可以通过 TARBALL 检查同一文件；发布前再次检查源码及字节，以 npm OIDC 发布，不执行生命周期脚本、不重新打包。必需前置任务检查同一个 expected-sha。
 6. 按项目站点策略部署。与包发布关联的站点等待 npm 成功，使用其 source-sha 和匹配的文档产物；docs-only 可以独立部署。latest-release 是可选策略，不是平台规则。
 
 要求操作系统/Node 矩阵时，应对精确候选完成检查，或将它们放入发布图。共享 action 不猜测必需任务，跳过或缺失不能当作成功。
@@ -26,7 +26,7 @@ gh workflow run publish.yml --ref v0.4.0 -f release-tag=v0.4.0
 ## 失败恢复
 
 - **准备失败**：检查并保留部分修改，再决定是否重试。
-- **检查或打包失败**：修正并重新验证候选；修改标签仍遵循项目授权。
+- **检查、打包或 tarball 校验失败**：修正并重新验证候选；修改标签仍遵循项目授权。
 - **npm 失败**：重试前检查日志与 registry 状态，保留失败事实；立即缺失元数据可能是传播延迟。
 - **仓库预检失败**：修正 package.json 的 repository，使其与消费项目 GitHub 仓库大小写一致，再重新验证候选。Git remote 或 Trusted Publisher 配置不能补足缺失的包元数据。
 - **npm 成功、文档失败**：不重复发布不可变版本；使用独立恢复入口，确认已发布提交，重新构建其文档，并将该 SHA 传给 expected-sha。Matrix/RSP 的操作入口保留 published-sha 记录，部署 action 接收 expected-sha。

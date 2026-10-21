@@ -21,7 +21,9 @@ runs:
   steps:
     - id: directory
       shell: bash
-      run: echo "path=$(mktemp -d "$RUNNER_TEMP/xova-cloudflare.XXXXXX")" >> "$GITHUB_OUTPUT"
+      run: |
+        directory=$(mktemp -d "$RUNNER_TEMP/xova-cloudflare.XXXXXX")
+        echo "path=$directory" >> "$GITHUB_OUTPUT"
     - id: download
       uses: actions/download-artifact@v7
       with:

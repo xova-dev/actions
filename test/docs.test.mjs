@@ -9,6 +9,7 @@ const pairs = [
   ['docs/architecture.md', 'docs/architecture.zh-CN.md'],
   ['docs/adoption.md', 'docs/adoption.zh-CN.md'],
   ['docs/releasing.md', 'docs/releasing.zh-CN.md'],
+  ['docs/release-it.md', 'docs/release-it.zh-CN.md'],
 ]
 
 test('bilingual guides keep identical executable examples and navigable local links', () => {
