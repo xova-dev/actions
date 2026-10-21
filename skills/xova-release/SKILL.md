@@ -21,6 +21,11 @@ checks. Release commits may include all necessary changes; parent CI and a
 `chore(release)` title do not exempt them from verification. Keep paid model or
 external acceptance runs within separately established authorization.
 
+Prefer shared release/recovery orchestration with thin consumer entries. Keep
+product matrices and checks in the consumer; do not copy generic runners or
+upstream regression suites. Select the provider policy and the same deployment
+lock for publication and recovery.
+
 Select the native npm/pnpm packer. Package checks can consume the action's TARBALL
 through package-verify-command; never repack a different file for publication.
 

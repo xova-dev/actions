@@ -38,6 +38,8 @@ without Docker.
 
 ## Configure a consumer
 
+Use [release.yml and docs-recover.yml](orchestration.md) for standard flows. Keep event triggers, project commands, product matrices and selected environments in the consumer. Do not copy generic composite runners, source/recovery guards or upstream behavior tests into each project.
+
 1. Keep CI and project tools/checks in the consumer. For the recipes, defaults are
    Node 24 and npm ci. Select toolchain=mise and explicit pnpm commands for a mise
    project; node-version only affects node mode. For other setup, use composites.
@@ -74,9 +76,10 @@ without Docker.
    The adapter restores the built site, then runs the supplied deployment command.
 6. Choose deployment policy explicitly. A docs-only project may deploy main with
    no npm or GitHub Release. For publication-coupled sites, require successful npm
-   and pass its source-sha as expected-sha. Run optional latest-release inside the
-   deployment job after its environment/concurrency gates, then condition deployment
-   on eligible=true. Errors must fail rather than masquerade as an ineligible release.
+   and pass its source-sha as expected-sha. Select deployment-policy=latest-stable in
+   the shared flow; the provider job evaluates it after environment/concurrency gates.
+   Only custom composite callers need to wire latest-release and eligible=true themselves.
+   Errors must fail rather than masquerade as an ineligible release.
 7. On first use, check workflow results, npm version/dist-tag and the site separately.
    Local checks do not prove OIDC or provider acceptance.
 
@@ -108,20 +111,11 @@ consumer application or real Cloudflare deployment.
 
 ## Matrix
 
-Replace scripts/check-release.mjs and its version/changelog-only and direct-parent
-CI gate together with their tests. Verify the final candidate; do not just enlarge
-a file allowlist or keep skipping chore(release) checks.
+The example uses one consumer-owned checks.yml for CI and publication. It preserves six OS/Node compatibility jobs and three Electron jobs on the exact native candidate. The publish entry waits for that product workflow, then calls release.yml; docs-recover is one shared recovery call. Keep the existing github-pages environment and concurrency group through inputs.
 
-The example retains three operating systems × two Node versions and three Electron
-jobs, all checking the exact candidate before npm. Linux Electron installs Xvfb.
-These requirements remain in the consumer. expected-sha detects a tag moving away
-from the previously checked candidate. The example explicitly selects mise/pnpm.
+Product package tests consume TARBALL for the final published file. Their fallback local packing remains available. Generic source, release-it, tarball and deployment regressions live in this toolkit; Matrix only tests its product matrix and workflow wiring.
 
-Separate local preparation from commit, tag, push and GitHub Release creation
-according to authorization. Keep the old entry until migration is accepted. The
-example selects package-manager=pnpm; this toolkit change does not migrate the
-actual Matrix repository. Its package tests still need adaptation to consume
-TARBALL before connecting package-verify-command.
+Uncommitted orchestration cannot be referenced through an older verified toolkit SHA. Use PENDING_ACTIONS_SHA only in local consumer drafts until authorized toolkit delivery and CI verification, then replace every pending workflow reference with the same verified full SHA before consumer delivery. An existing preparation preset pin can remain independent. Toolkit CI does not validate consumer-hosted calls or nested required-check names.
 
 ## RSP
 

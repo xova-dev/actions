@@ -45,3 +45,16 @@ test('lint still reports workflow errors when composite metadata is valid', t =>
   assert.notEqual(rejected.status, 0)
   assert.match(output(rejected), /examples\/sample\/check.yml/)
 })
+
+test('lint resolves local example workflows in the consumer layout and validates their required inputs', t => {
+  const project = lintFixture(t)
+  project.write('examples/sample/checks.yml', 'on:\n  workflow_call:\n    inputs:\n      source-sha:\n        type: string\n        required: true\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo ok\n')
+  const caller = 'on: push\njobs:\n  check:\n    uses: ./.github/workflows/checks.yml\n'
+  project.write('examples/sample/check.yml', caller)
+  const rejected = project.lint()
+  assert.notEqual(rejected.status, 0)
+  assert.match(output(rejected), /source-sha/)
+  project.write('examples/sample/check.yml', caller + '    with:\n      source-sha: fixture\n')
+  const accepted = project.lint()
+  assert.equal(accepted.status, 0, output(accepted))
+})

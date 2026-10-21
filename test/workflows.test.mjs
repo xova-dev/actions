@@ -189,22 +189,9 @@ test('artifact directory allocation failures stop before provider download', t =
   }
 })
 
-test('release consumers evaluate latest-release policy inside the serialized deployment job', () => {
-  for (const consumer of ['matrix', 'rsp']) for (const filename of ['publish', 'docs-recover']) {
-    const document = parse(readFileSync(join(root, 'examples', consumer, filename + '.yml'), 'utf8'))
-    const deploy = document.jobs.deploy
-    assert.ok(deploy.environment)
-    assert.equal(deploy.concurrency['cancel-in-progress'], false)
-    const policy = deploy.steps.findIndex(item => item.uses?.includes('/actions/latest-release@'))
-    const adapter = deploy.steps.findIndex(item => item.uses?.includes('/actions/docs-'))
-    assert.ok(policy >= 0 && adapter > policy)
-    assert.equal(deploy.steps[adapter].if, "steps.policy.outputs.eligible == 'true'")
-  }
-})
-
 test('recipes select node or mise explicitly and reject unknown toolchains', t => {
   const project = fixture(t)
-  for (const name of ['npm-publish', 'docs-build', 'docs-cloudflare']) {
+  for (const name of ['npm-publish', 'docs-build']) {
     const job = Object.values(workflow(name).jobs)[0]
     const validate = job.steps.find(item => item.name === 'Validate toolchain selection')
     for (const toolchain of ['node', 'mise', 'unknown']) {
@@ -235,14 +222,19 @@ test('all consumer and same-commit recipe calls satisfy actual action/workflow c
   for (const directory of readdirSync(join(root, 'examples')))
     for (const file of readdirSync(join(root, 'examples', directory)))
       if (file.endsWith('.yml')) files.push(join(root, 'examples', directory, file))
-  for (const name of ['npm-publish', 'docs-build', 'docs-pages', 'docs-cloudflare'])
-    files.push(join(root, '.github/workflows', name + '.yml'))
+  for (const name of readdirSync(join(root, '.github/workflows')))
+    if (name.endsWith('.yml')) files.push(join(root, '.github/workflows', name))
   for (const file of files) {
     const document = parse(readFileSync(file, 'utf8'))
     for (const job of Object.values(document.jobs)) {
       if (job.uses?.startsWith('xova-dev/actions/')) {
         const name = job.uses.match(/\/([^/]+)\.yml@/)[1]
         checkInputs(workflow(name).on.workflow_call, job, file)
+      }
+      if (job.uses?.startsWith('./.github/workflows/')) {
+        const name = job.uses.split('/').at(-1)
+        const target = file.includes('/examples/') ? join(file, '..', name) : join(root, '.github/workflows', name)
+        checkInputs(parse(readFileSync(target, 'utf8')).on.workflow_call, job, file)
       }
       for (const item of job.steps || []) {
         const match = item.uses?.match(/^(?:\$\/|xova-dev\/actions\/)actions\/([a-z-]+)(?:@.*)?$/)

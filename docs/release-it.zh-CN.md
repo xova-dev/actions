@@ -24,7 +24,7 @@ pnpm add --save-dev --save-exact release-it@21.1.1 @release-it/conventional-chan
 }
 ```
 
-占位符不能直接使用。本地评估时改为本检出目录下 config 目录的绝对路径。测试使用本地继承，远端下载尚未验证；工具库 package.json 保持 private。
+占位符不能直接使用。本地评估时改为本检出目录下 config 目录的绝对路径。自动化 fixture 使用本地继承；消费方准备版本前应验证固定预设的远端下载。工具库 package.json 保持 private。
 
 [预设](../config/.release-it.json)关闭提交、标签、推送、npm 发布、GitHub/GitLab Release，以及 npm version 生命周期脚本；根据显式版本写入 CHANGELOG.md。在干净工作区使用已安装的 CLI：
 

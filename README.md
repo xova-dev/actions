@@ -8,8 +8,11 @@ checks, release contents, environments and deployment policy. Organization defau
 and workflow templates stay in `xova-dev/.github`.
 
 The stable interface has not been released. Every `@v1` example is a placeholder. Pin a
-verified full commit SHA after publishing and validating the interface. No consumer
-repository has been migrated; npm OIDC and real deployments remain unvalidated.
+verified full commit SHA after publishing and validating the interface. Matrix has a
+local integration draft; no consumer migration has passed hosted acceptance, and
+npm OIDC and real deployments remain unvalidated.
+
+For standard publication and documentation recovery, start with the [shared orchestration](docs/orchestration.md). Consumers keep product checks and thin event entries; generic source validation, deployment sequencing and recovery stay here.
 
 ## Choose an entry
 

@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       release-tag:
-        description: Existing stable release whose npm publication has been confirmed
+        description: Confirmed stable release; select this same tag as the workflow ref
         required: true
         type: string
       published-sha:
@@ -13,37 +13,21 @@ on:
 permissions:
   contents: read
 jobs:
-  documentation:
-    uses: xova-dev/actions/.github/workflows/docs-build.yml@v1
-    with:
-      source-ref: ${{ inputs.published-sha }}
-      check-command: pnpm docs:typecheck
-      toolchain: mise
-      install-command: pnpm install --frozen-lockfile
-      build-command: pnpm docs:build
-      site-directory: docs/.vitepress/dist
-  deploy:
-    needs:
-      - documentation
-    runs-on: ubuntu-latest
-    environment: github-pages
-    concurrency:
-      group: pages-${{ github.repository }}
-      cancel-in-progress: false
+  recover:
+    uses: xova-dev/actions/.github/workflows/docs-recover.yml@v1
     permissions:
       contents: read
-      pages: write
       id-token: write
-    steps:
-      - uses: actions/setup-node@v7
-        with:
-          node-version: "24"
-      - id: policy
-        uses: xova-dev/actions/actions/latest-release@v1
-        with:
-          release-tag: ${{ inputs.release-tag }}
-          expected-sha: ${{ inputs.published-sha }}
-      - uses: xova-dev/actions/actions/docs-pages@v1
-        if: steps.policy.outputs.eligible == 'true'
-        with:
-          expected-sha: ${{ inputs.published-sha }}
+      pages: write
+    with:
+      release-tag: ${{ inputs.release-tag }}
+      published-sha: ${{ inputs.published-sha }}
+      docs-provider: pages
+      docs-check-command: pnpm docs:typecheck
+      docs-build-command: pnpm docs:build
+      docs-site-directory: docs/.vitepress/dist
+      docs-environment-name: github-pages
+      docs-concurrency-group: github-pages
+      deployment-policy: latest-stable
+      toolchain: mise
+      install-command: pnpm install --frozen-lockfile

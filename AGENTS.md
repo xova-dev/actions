@@ -26,5 +26,10 @@ deployment configuration. Organization defaults and workflow templates belong to
   substitute parent CI for candidate verification.
 - Keep scripts deterministic and the Skill short. Project commands belong to the
   consumer; do not add Matrix- or RSP-specific branches to shared workflows.
+- Standard release, deployment and recovery orchestration belongs here. Consumers
+  keep thin event entries, product commands and their required product matrices;
+  do not copy generic composite runners or upstream regression suites into them.
+- Evaluate deployment policy inside the provider environment/concurrency gate.
+  Recovery rebuilds confirmed sources and must never invoke npm publication.
 - Preserve existing authorization. Implementation does not authorize committing,
   pushing, tagging, publication, deployment or installing the Skill globally.

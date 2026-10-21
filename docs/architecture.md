@@ -20,7 +20,7 @@ configure maintainers only.
 | --- | --- |
 | Consumer job | Events, checkout, tools, dependencies, checks, environments, permissions, concurrency, required upstream jobs and deployment eligibility. |
 | Composite action | Operation ordering, source validation, native packing/publication or artifact validation/provider invocation. |
-| Reusable workflow | Common Ubuntu setup around one composite; no implicit latest-release or npm-to-docs dependency. |
+| Reusable workflow | Standard release/recovery orchestration and composable Ubuntu recipes; product checks and policy choices remain caller-owned. |
 | release-it presets | Preparation defaults/official changelog integration; the publication preset uses the built-in npm publisher with a small candidate plugin. |
 | lib/ | Internal implementation of shared invariants, not public entry points. |
 
@@ -34,6 +34,7 @@ Each action.yml owns the authoritative input/output descriptions.
 | [docs-build](../actions/docs-build/action.yml) | Requires expected-sha, check-command, build-command, site-directory; optional working-directory (.), artifact-name (documentation), retention-days (7). Uploads an artifact and returns source-sha. |
 | [docs-pages](../actions/docs-pages/action.yml) | Requires expected-sha; optional artifact-name (documentation). Validates then deploys, returning page-url. Does not need checkout or npm dependencies. |
 | [docs-cloudflare](../actions/docs-cloudflare/action.yml) | Requires expected-sha, site-directory, deploy-command; optional artifact-name and working-directory. Caller checks out that commit, installs locked deployment tools and provides credentials in the step environment. |
+| [release-source](../actions/release-source/action.yml) | Early native tag/SHA and provider/policy validation; recovery requires a confirmed expected-sha. Does not replace final package verification. |
 | [latest-release](../actions/latest-release/action.yml) | Optional policy requiring release-tag and expected-sha. Returns eligible=true for the exact latest stable GitHub Release, false for other releases; API errors/source mismatches fail. |
 
 Composites install no project tools/dependencies. Supply Node 24 and Bash; npm
@@ -96,7 +97,7 @@ create a separate npm registry version.
 
 ## Reusable workflows and policy
 
-The four workflows invoke matching composites. npm-publish defaults to npm ci and
+The high-level release, docs-recover and docs-deploy workflows own source gates, dependency ordering and provider selection. See the [orchestration contract](orchestration.md). npm-publish and docs-build invoke their matching composites; docs-pages and docs-cloudflare are compatibility entries into docs-deploy, which owns both provider jobs. npm-publish defaults to npm ci and
 Node 24. docs-build defaults to npm ci and npm run docs:build, requiring explicit
 site-directory. Select toolchain=mise and explicit pnpm commands when needed;
 node-version applies to node mode. Environments are configurable. Cloudflare
@@ -127,10 +128,10 @@ commands or fully validate composite expressions. Contract/behavior tests remain
 responsible for the selected execution paths. Both tools are pinned in mise.toml;
 CI uses their native binaries without Docker.
 
-Evaluate latest-release inside the deployment job after its environment gate and
+Shared provider workflows evaluate an opted-in latest-stable policy inside the deployment job after its environment gate and
 concurrency acquisition; condition the provider action on eligible=true. An early
 separate policy job could become stale while deployment waits. Matrix/RSP examples
-show this ordering; docs-only deliberately deploys main without release policy.
+select the shared flow enforcing this ordering; docs-only deliberately deploys main without release policy.
 This is not an atomic lock against creation of a new release during deployment.
 
 The policy queries the selected release by tag first. A prerelease or draft
@@ -174,7 +175,7 @@ breaking changes require a new major version. Pin full SHAs and validate upgrade
 against independent fixtures and affected project examples.
 
 This draft restructuring replaces deployment published-sha/release-tag with
-expected-sha and moves stable-release policy into callers. mise/pnpm are opt-in;
+expected-sha and keeps stable-release policy selection in callers while shared workflows execute it. mise/pnpm are opt-in;
 site-directory is explicit. Old SHA-only artifacts fail: rebuild instead of
 inventing metadata. Consumers inherit the preparation preset and use native
 release-it hooks/configuration; no separate preparation script or monorepo release

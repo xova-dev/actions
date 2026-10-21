@@ -22,6 +22,10 @@ test('a downloaded toolkit verifies and publishes with bundled semver and no too
   }
   const candidate = runStep(actionStep('npm-publish', 'candidate').run, project.cwd, env)
   assert.equal(candidate.status, 0, output(candidate))
+  const source = runStep(actionStep('release-source', 'source').run, project.cwd, {
+    ...env, RELEASE_MODE: 'release', DOCS_PROVIDER: 'none', DEPLOYMENT_POLICY: 'latest-stable', EXPECTED_SHA: env.GITHUB_SHA,
+  })
+  assert.equal(source.status, 0, output(source))
   const result = runStep(actionStep('npm-publish', 'publish').run, project.cwd, {
     ...env, NPM_TAG: 'latest', EXPECTED_SHA: env.GITHUB_SHA, EXPECTED_VERSION: '0.2.0',
   })
@@ -133,8 +137,8 @@ test('two deployment targets restore their own artifacts and run caller deployme
     })
     assert.equal(deploy.status, 0, deploy.logs)
     assert.equal(readFileSync(join(project.cwd, 'deployed-' + site), 'utf8'), site)
-    const group = workflow('docs-cloudflare').jobs.deploy.concurrency.group
-      .replaceAll('$' + '{{ github.repository }}', 'fixture/project').replaceAll('$' + '{{ inputs.site-id }}', site)
+    const group = workflow('docs-deploy').jobs.cloudflare.concurrency.group
+      .replaceAll('github.repository', 'fixture/project').replaceAll('inputs.site-id', site)
     groups.add(group)
   }
   assert.equal(groups.size, 2)

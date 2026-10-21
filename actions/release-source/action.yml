@@ -1,0 +1,35 @@
+name: Validate a release or recovery source
+description: Match the native tag and SHA before building, publishing or requesting deployment approval.
+inputs:
+  release-tag:
+    required: true
+    description: Selected release tag; the workflow must run at this same tag.
+  expected-sha:
+    default: ''
+    description: Checked candidate SHA, or mandatory confirmed published SHA for recovery.
+  mode:
+    default: release
+    description: release or recovery; recovery never publishes npm.
+  docs-provider:
+    default: none
+    description: none, pages or cloudflare; recovery requires a provider.
+  deployment-policy:
+    default: latest-stable
+    description: always or latest-stable.
+outputs:
+  source-sha:
+    description: Native candidate matching the caller's selected source.
+    value: ${{ steps.source.outputs.source-sha }}
+runs:
+  using: composite
+  steps:
+    - id: source
+      shell: bash
+      env:
+        XOVA_ACTION_PATH: ${{ github.action_path }}
+        RELEASE_TAG: ${{ inputs.release-tag }}
+        EXPECTED_SHA: ${{ inputs.expected-sha }}
+        RELEASE_MODE: ${{ inputs.mode }}
+        DOCS_PROVIDER: ${{ inputs.docs-provider }}
+        DEPLOYMENT_POLICY: ${{ inputs.deployment-policy }}
+      run: node "$XOVA_ACTION_PATH/../../lib/cli.mjs" release-source

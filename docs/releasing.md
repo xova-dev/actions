@@ -7,6 +7,8 @@ and Git state. The release-it changelog plugin summarizes commits; it does not r
 or migration decisions. Read [publication limits](adoption.md#publication-guarantees-and-limits)
 and the [interface scope](architecture.md#scope-and-ownership) before live delivery.
 
+Standard callers use [shared release/recovery orchestration](orchestration.md). Product checks finish first; the toolkit then validates the native candidate, builds documentation when selected, publishes the checked tarball and deploys only after npm success.
+
 ## Package release
 
 1. Preview an explicit version with the consumer's release-it entry and the shared
@@ -17,7 +19,7 @@ and the [interface scope](architecture.md#scope-and-ownership) before live deliv
    may be included; no file allowlist, parent-count or special title is required.
 4. With authorization, create a tag matching the package version and tag-prefix,
    push the candidate and create a GitHub Release if the project uses one.
-5. Invoke npm-publish at that tag. Its explicit checks/builds and native npm/pnpm
+5. Invoke release.yml at that tag; use npm-publish only for custom composition. Its explicit checks/builds and native npm/pnpm
    packing verify the final candidate. package-verify-command can test that same
    file via TARBALL. Source and bytes are rechecked before npm OIDC publication,
    without lifecycle scripts or repacking. Required upstream jobs check the same expected-sha.
@@ -51,16 +53,17 @@ the example subpackage workflow uses a tag push instead of workflow_dispatch.
 - **Repository preflight fails:** correct package.json repository to match the
   consumer GitHub repository, including case, then reverify the candidate.
   A Git remote or a Trusted Publisher entry does not fill missing package metadata.
-- **npm succeeds, docs fail:** do not republish the immutable version. Use a separate
-  recovery entry, confirm the published commit, rebuild its documentation and pass
-  that SHA as expected-sha. Matrix/RSP recovery inputs retain published-sha as the
-  operator's record; the deployment action takes expected-sha.
+- **npm succeeds, docs fail:** do not republish the immutable version. Confirm the
+  successful npm job and provenance even if the overall workflow failed. Use a thin
+  docs-recover.yml call at the confirmed release tag with published-sha. Shared recovery
+  rebuilds that source and passes it as expected-sha to deployment without invoking npm.
 - **Artifacts expire or use the old format:** rebuild from the confirmed source
   using the current builder. Recovery uploads/deploys a new artifact in its own run.
   Do not substitute newer main content or invent missing metadata.
 
-For stable-release sites, run latest-release within the serialized deployment job
-and condition the adapter on eligible=true. An old release, prerelease or draft
+For stable-release sites, select deployment-policy=latest-stable in shared release/recovery.
+It runs latest-release within the serialized provider job and conditions the adapter
+on eligible=true; only custom composite callers wire these steps themselves. An old release, prerelease or draft
 yields false. A first prerelease needs no existing stable release: the policy
 checks its type before requesting latest. Missing releases, API failures and
 stable candidate source mismatches fail. Follow the examples' ordering so environment

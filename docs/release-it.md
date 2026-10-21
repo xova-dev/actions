@@ -30,8 +30,7 @@ preset from a pinned full SHA in the consumer's .release-it.json:
 ```
 
 The placeholder is not usable. For local evaluation, inherit this checkout's
-absolute config directory instead. Tests use local inheritance; remote retrieval
-is not yet verified. The toolkit package.json stays private.
+absolute config directory instead. Automated fixtures use local inheritance; validate remote retrieval of the pinned preset in the consumer before preparation. The toolkit package.json stays private.
 
 The [preset](../config/.release-it.json) disables commit/tag/push, npm publication,
 GitHub/GitLab Releases and npm version lifecycle scripts. It writes CHANGELOG.md
