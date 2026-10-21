@@ -74,6 +74,8 @@ The example uses one consumer-owned checks.yml for CI and publication. It preser
 
 Product package tests consume TARBALL for the final published file. Their fallback local packing remains available. Generic source, release-it, tarball and deployment regressions live in this toolkit; Matrix only tests its product matrix and workflow wiring.
 
+Only the Matrix blueprint's Electron jobs filter root installation to `@xova/matrix`, retaining development build tools and failing if the selector matches nothing. The acceptance script independently installs the tarball and the example's complete locked dependencies, so documentation and example workspaces need not be installed at the root of those jobs. Quality and compatibility jobs still install the full workspace. Keep per-file isolation enabled. Retain Vitest's default worker concurrency unless repeated target-runner measurements justify changing concurrency without removing cases.
+
 Uncommitted orchestration cannot be referenced through an older verified toolkit SHA. Use PENDING_ACTIONS_SHA only in local consumer drafts until authorized toolkit delivery and CI verification, then replace every pending workflow reference with the same verified full SHA before consumer delivery. An existing preparation preset pin can remain independent. Toolkit CI does not validate consumer-hosted calls or nested required-check names.
 
 ## RSP
