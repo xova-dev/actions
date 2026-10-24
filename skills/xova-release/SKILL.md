@@ -21,6 +21,10 @@ checks. Release commits may include all necessary changes; parent CI and a
 `chore(release)` title do not exempt them from verification. Keep paid model or
 external acceptance runs within separately established authorization.
 
+Publish may reuse checked-ci evidence for complete successful CI at that exact SHA.
+Without qualifying evidence, run the project's complete checks. Keep actual TARBALL
+tests and same-byte publication checks even when source CI is reused.
+
 Prefer shared release/recovery orchestration with thin consumer entries. Keep
 product matrices and checks in the consumer; do not copy generic runners or
 upstream regression suites. Select the provider policy and the same deployment

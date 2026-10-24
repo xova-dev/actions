@@ -92,7 +92,7 @@ jobs:
           site-directory: ${{ fromJSON(steps.config.outputs.config).docs.site-directory }}
           artifact-name: ${{ inputs.artifact-name }}
           retention-days: ${{ inputs.retention-days }}
-      - name: Confirm checked source
+      - name: ${{ inputs.kind == 'code' && steps.config.outputs.code-changed == 'true' && format('Full code checks ({0}) at {1}', inputs.config-file, inputs.source-sha || github.sha) || 'Confirm checked source' }}
         id: checked
         uses: $/actions/check-source
         with:

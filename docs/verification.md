@@ -18,6 +18,16 @@ These jobs explicitly select the node toolchain and use only contents:read. They
 
 The hosted jobs run on the existing CI push, pull_request and workflow_dispatch events. Adding their YAML locally does not execute them: their first hosted acceptance requires separately authorized Git delivery or dispatch with the revision available remotely.
 
+## Complete CI reuse verification
+
+[Reuse regressions](../test/checked-ci.test.mjs) execute check.yml's final source guard to distinguish complete, reduced docs-only and failed checks, replacing only the GitHub API/CLI and wait clock. Cases cover exact SHA/repository/event/workflow/configuration matching, job pagination, product-matrix failure, latest-run failure, attempt selection, concurrent reruns, bounded waits and lookup-error fallback. Consumer gates cover both reused CI and complete fallback checks, rejecting failures, cancellation, missing outputs and unexpected skips. Actual tarball tests and same-byte publication regressions remain in place.
+
+Regressions execute the actual lookup CLI and require fatal input errors to emit input-error=true before failure. Failed runtimes and timeout-killed lookup steps simulate initialization and host job-timeout boundaries. The condition evaluator selects each job's actual needs and models implicit success(); removing !cancelled() or restoring the old predicate must fail the recovery cases. Coverage includes missing/stale outputs, successful complete fallback with matching SHA, failed/cancelled/skipped fallback, wrong SHA, fatal markers and whole-workflow cancellation. Publication after lookup failure/timeout still exercises actual tarball success/failure checks and same-byte verification.
+
+Status-reporting tests execute the shipped warning/error shell and model failure aggregation from declared job-level continue-on-error settings. A failed lookup followed by successful complete fallback/publication must not fail the workflow; fatal input reports, failed complete checks and failed tarball checks still do. Disabling lookup tolerance or swallowing fatal reports must produce opposite results. Failed step outcomes cannot export reusable SHA even with a tolerated success conclusion; fatal input markers remain available. This model does not simulate the full GitHub scheduler.
+
+Local fixtures do not establish hosted GitHub job/step metadata, failed-job output propagation, timeout scheduling, access permissions, waiting behavior or measured speed gains. Older CI without the complete-check marker performs the full fallback checks on first adoption.
+
 ## Dependency cache verification
 
 Dependency-cache regressions execute the shipped setup steps, replacing hosted cache/tool APIs and the uv directory lookup. They cover hits/misses before real installation, npm cache selection reaching the code command, docs cache replacement, disabled caches without lockfiles/uv, and missing uv locks or failed lookup stopping before installation. Configuration tests preserve unknown-field/type rejection and validate independent defaults and docs inheritance. Native setup-node/actions/cache storage and hosted speed gains require subsequent remote CI evidence; local tests do not establish cache transport or timing.

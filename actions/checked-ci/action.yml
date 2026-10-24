@@ -1,0 +1,38 @@
+name: Reuse complete CI checks
+description: Find successful complete CI for the exact native source, or require fresh checks. Requires Node 24, gh and actions:read.
+inputs:
+  expected-sha:
+    description: Exact native event SHA that must have passed complete CI.
+    required: true
+  workflow-file:
+    description: Trusted CI workflow path in the caller repository.
+    default: .github/workflows/ci.yml
+  config-file:
+    description: Project configuration used by the complete code check.
+    default: .github/xova.json
+  wait-seconds:
+    description: Maximum wait for pending CI before requiring fresh checks; 0 disables waiting.
+    default: '1800'
+outputs:
+  source-sha:
+    description: Exact source when complete CI is reusable; empty requires fresh complete checks.
+    value: ${{ steps.ci.outputs.source-sha }}
+  run-id:
+    description: Successful CI run used as evidence; empty when fresh checks are required.
+    value: ${{ steps.ci.outputs.run-id }}
+  input-error:
+    description: true for fatal native SHA or selector errors; block fallback and publication even if the lookup job fails.
+    value: ${{ steps.ci.outputs.input-error || 'false' }}
+runs:
+  using: composite
+  steps:
+    - id: ci
+      shell: bash
+      env:
+        XOVA_ACTION_PATH: ${{ github.action_path }}
+        GH_TOKEN: ${{ github.token }}
+        EXPECTED_SHA: ${{ inputs.expected-sha }}
+        CI_WORKFLOW: ${{ inputs.workflow-file }}
+        CONFIG_FILE: ${{ inputs.config-file }}
+        CI_WAIT_SECONDS: ${{ inputs.wait-seconds }}
+      run: node "$XOVA_ACTION_PATH/../../lib/cli.mjs" checked-ci

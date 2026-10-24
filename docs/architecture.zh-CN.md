@@ -29,6 +29,7 @@
 | [setup](../actions/setup/action.yml) | 显式选择工具链，通过 cache JSON 输入选配 npm/pnpm/uv 下载缓存，命中与未命中都安装锁定依赖；检查、构建、发布和 Cloudflare 任务共同使用。 |
 | [project-config](../actions/project-config/action.yml) | 校验干净、精确来源中的受跟踪 JSON，补全默认值，可选分类普通 CI 改动。 |
 | [check-source](../actions/check-source/action.yml) | 必填 expected-sha；不读取配置，仅核对 HEAD、受跟踪文件和暂存区，成功后返回 source-sha。 |
+| [checked-ci](../actions/checked-ci/action.yml) | 必填 expected-sha；workflow-file 默认 .github/workflows/ci.yml，config-file 默认 .github/xova.json，wait-seconds 默认 1800。成功复用精确 SHA 的完整 CI 时返回 source-sha/run-id，否则返回空来源输出并完整回退；致命输入错误返回 input-error=true 且失败，禁止回退和发布。 |
 | [npm-publish](../actions/npm-publish/action.yml) | 必填 release-tag、verify-command；可选 expected-sha、tag-prefix（v）、working-directory（.）、npm-tag（auto）、package-manager（npm）及 package-verify-command；发布成功后返回 source-sha、version、tarball-sha256 和 publication-artifact。 |
 | [docs-build](../actions/docs-build/action.yml) | 必填 expected-sha、check-command、build-command、site-directory；可选 working-directory（.）、artifact-name（documentation）、retention-days（7）；上传产物，返回 source-sha。 |
 | [docs-pages](../actions/docs-pages/action.yml) | 必填 expected-sha；artifact-name 默认 documentation；验证后部署，返回 page-url，不需要检出或 npm 依赖。 |
@@ -36,7 +37,7 @@
 | [release-source](../actions/release-source/action.yml) | 前置检查原生标签/SHA 及平台/策略；恢复必须提供确认的 expected-sha，不替代最终包验证。 |
 | [latest-release](../actions/latest-release/action.yml) | 可选策略，必填 release-tag、expected-sha；精确匹配最新稳定 GitHub Release 时返回 eligible=true，其他版本返回 false；API 错误或来源不匹配则失败。 |
 
-操作类 composite 不安装项目工具与依赖；setup 是显式的安装 action。调用方提供 Node 24、Bash；npm 发布还要求 tar、锁定的 release-it 21.1.1、npm 11.5.1+、公开仓库和 Trusted Publishing。release-it 要求 Node ^22.22.2、^24.15.0 或 >=26.0.0。latest-release 还需要 gh。Pages 任务授予 pages:write、id-token:write，发布授予 id-token:write；Cloudflare 凭证通过步骤环境中的 CLOUDFLARE_API_TOKEN、CLOUDFLARE_ACCOUNT_ID 显式提供。
+操作类 composite 不安装项目工具与依赖；setup 是显式的安装 action。调用方提供 Node 24、Bash；npm 发布还要求 tar、锁定的 release-it 21.1.1、npm 11.5.1+、公开仓库和 Trusted Publishing。release-it 要求 Node ^22.22.2、^24.15.0 或 >=26.0.0。latest-release 和 checked-ci 还需要 gh；checked-ci 的独立查询任务授予 actions:read。Pages 任务授予 pages:write、id-token:write，发布授予 id-token:write；Cloudflare 凭证通过步骤环境中的 CLOUDFLARE_API_TOKEN、CLOUDFLARE_ACCOUNT_ID 显式提供。
 
 没有跳过校验的开关。检查失败会阻止打包、上传或部署。验证命令明确完成必要生成与构建；package-manager 选择 npm 或 pnpm，两者打包时均禁用生命周期脚本，npm 发布使用 --ignore-scripts。默认 npm 打包器拒绝 catalog:/workspace: 依赖，pnpm 项目显式选择 pnpm；测试覆盖原生 npm 和 pnpm 12 打包。可选 package-verify-command 通过绝对路径 TARBALL 检查该文件。发布前再次检查源码、暂存区、HEAD 和原始 tarball SHA-256，直接发布同一文件，不重新打包。未提供该可选命令时，包身份和一致性校验不代表产品兼容性。原生 GITHUB_SHA/GITHUB_REF 必须对应标签候选，不改写 provenance 上下文。预发布默认进入 next，不能进入 latest；稳定版本默认进入 latest，允许哪个版本推进渠道仍由调用方决定。
 

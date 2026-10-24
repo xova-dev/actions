@@ -97,6 +97,20 @@ PENDING_ACTIONS_SHA 是显式本地草稿标记。消费方交付前，必须替
 
 发布必须依赖消费方对精确 SHA 的完整检查。有此前置条件时，npm.verify-command 可以只生成、构建待发布包，避免在新 job 中重复 lint、类型和示例检查；没有此前置门禁时则必须包含所有必要检查。打包禁用生命周期脚本，TARBALL 检查实际发布文件，发布前再次核对 SHA-256。跨平台测试仍可能各自打包，不声称所有平台已消费同一个晋级 tarball。
 
+### 复用同一候选的完整 CI
+
+[Matrix](../examples/matrix/publish.yml) 和 [RSP](../examples/rsp/publish.yml) 的 Publish 先调用 [checked-ci](../actions/checked-ci/action.yml)。普通 push/PR CI 保持不变；不按 chore(release) 标题跳过检查。复用判断只需要 Node 24、gh 和独立任务中的 contents:read/actions:read，无需检出或安装项目依赖，不扩大源码检查、npm 或文档恢复的权限。
+
+默认查询当前仓库的 .github/workflows/ci.yml，选择精确原生 SHA 的最新 push/workflow_dispatch 运行，拒绝 PR、其他仓库和父提交。待运行或运行中的 CI 最多等待 1800 秒；wait-seconds 可设为 0–1800。整次运行必须成功，包括消费方产品矩阵；同时，所选 attempt 的任务必须完成且没有失败，并包含同一 config-file/SHA 的成功完整代码检查标记。check.yml 仅在完整代码命令通过后的最终来源校验步骤使用该标记，纯文档精简路径不生成标记。分页读取任务，返回前再次核对 run/attempt/状态，避免混用重新运行前后的证据。
+
+合格时返回 source-sha/run-id，Publish 跳过重复的前置源码检查；没有合格运行、失败或取消、等待超时、旧版 CI 没有标记、API/权限不可用时返回空来源输出，执行原有完整检查（Matrix 包括产品矩阵）。参数或原生 SHA 无效时先输出 input-error=true，再使查询失败；该致命标记禁止回退和发布。普通结果的 input-error 为 false；查询任务未执行到 action 时可能没有输出。
+
+查询 job 初始化失败、中断或超时时，只要没有致命输入标记且整次工作流未被取消，也必须执行完整回退；失败查询留下的来源输出不能授权复用。查询 job 是可选优化，使用 job 级 continue-on-error，不让可恢复故障拖红完整回退成功的工作流；source-sha 只从 outcome=success 的查询步骤导出，不依据被容错后的 conclusion。API 查询故障和等待超时输出 warning；ci-status 对不可复用结果输出警告，对 input-error=true 则明确报错且不允许容错，保证致命输入错误仍使工作流失败并阻断发布。非致命的状态报告也允许容错，避免报告故障代替产品结果决定成败。
+
+回退与发布条件显式使用 !cancelled()，避免 GitHub 隐式 success() 跳过失败依赖后的完整检查。只有查询成功且复用到精确 SHA，或回退检查成功并返回精确 SHA，才能进入 release.yml；回退失败、取消、SHA 缺失/不匹配或意外跳过都不能发布，查询 job 意外跳过也会阻断。完整回退和发布任务不设置 continue-on-error；CI 工作流自身仍须强制必要产品检查，不能用容错或无关任务上的伪造标记代替产品门禁。工作流状态不能替代独立的 npm 发布结果证明。
+
+这只复用源码检查结果。发布仍构建包、测试实际 TARBALL、重验来源与 tarball 摘要，并重建同次运行的文档产物；不跨运行晋级文档。自定义项目保留自己的完整回退检查；workflow-file/config-file 必须与其可信 CI 入口和受跟踪项目配置一致。自定义代码检查未使用 check.yml 时，不具备上述最终来源标记，应继续执行完整检查。
+
 发布和恢复从标签 SHA 读取相同文档配置，共用环境、锁，以及进入这些门禁后的 latest-stable 判断。恢复仍要求操作者确认 npm 已发布；标签存在、工作流总体状态或结果 JSON 都不是独立的 registry 证明。
 
 ## 统一阶段与运行时输入

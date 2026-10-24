@@ -37,6 +37,7 @@ Each action.yml owns the authoritative input/output descriptions.
 | [setup](../actions/setup/action.yml) | Explicit toolchain selection, optional npm/pnpm/uv download caches via the cache JSON input, and locked installation on both hits and misses; shared by check/build/publish/Cloudflare jobs. |
 | [project-config](../actions/project-config/action.yml) | Validate tracked JSON from a clean exact source, normalize defaults, and optionally classify ordinary CI changes. |
 | [check-source](../actions/check-source/action.yml) | Requires expected-sha; verifies HEAD and clean tracked files/index without reading configuration, then returns source-sha. |
+| [checked-ci](../actions/checked-ci/action.yml) | Requires expected-sha; workflow-file defaults to .github/workflows/ci.yml, config-file to .github/xova.json and wait-seconds to 1800. Returns source-sha/run-id only for reusable complete CI at the exact SHA; empty source outputs require complete fallback. Fatal input errors emit input-error=true and fail, blocking fallback and publication. |
 | [npm-publish](../actions/npm-publish/action.yml) | Requires release-tag and verify-command; optional expected-sha, tag-prefix (v), working-directory (.), npm-tag (auto), package-manager (npm) and package-verify-command. Returns source-sha/version, tarball-sha256 and publication-artifact after publication. |
 | [docs-build](../actions/docs-build/action.yml) | Requires expected-sha, check-command, build-command, site-directory; optional working-directory (.), artifact-name (documentation), retention-days (7). Uploads an artifact and returns source-sha. |
 | [docs-pages](../actions/docs-pages/action.yml) | Requires expected-sha; optional artifact-name (documentation). Validates then deploys, returning page-url. Does not need checkout or npm dependencies. |
@@ -47,7 +48,7 @@ Each action.yml owns the authoritative input/output descriptions.
 Operation composites install no project tools/dependencies; setup is the explicit installation action. Supply Node 24 and Bash; npm
 publication also needs tar, locked release-it 21.1.1, npm 11.5.1+, a public repository
 and Trusted Publishing. release-it requires Node ^22.22.2, ^24.15.0 or >=26.0.0.
-latest-release also needs gh. Pages jobs grant pages:write and id-token:write;
+latest-release and checked-ci also need gh; the separate checked-ci lookup job grants actions:read. Pages jobs grant pages:write and id-token:write;
 publication grants id-token:write. Cloudflare credentials are explicit step
 environment variables CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID.
 
